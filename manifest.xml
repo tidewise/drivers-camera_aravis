@@ -1,16 +1,13 @@
 <package>
   <description brief="Camera Driver for Aravis based cameras">
-  
+	  This package contains a driver and a testprogramm for Cameras based on the genicam standard. The connection
+	  will be created through the aravis library of the gnome project.
   </description>
-  <author>/</author>
-  <license></license>
+  <author>Fabian Franzen</author>
+  <license>LGPL</license>
   <url>http://</url>
   <logo>http://</logo>
-  <!--
-   To add any dependencies use the depend tag
-  <depend package="dummy-dependency-0" />
-	...
-  <depend package="dummy-dependency-n-1" />
-  <depend package="dummy-dependency-n" />
-  -->
+  <depend package="drivers/aravis" />
+  <depend package="drivers/camera_interface" />
+  <depend package="opencv" />
 </package>
