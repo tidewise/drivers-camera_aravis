@@ -18,7 +18,14 @@ namespace camera
 			bool grab(const GrabMode mode = SingleFrame, const int buffer_len=1);
 			void openCamera(std::string camera_name);
 			bool retrieveFrame(base::samples::frame::Frame &frame,const int timeout=1000);
+			bool isFrameAvailable();
 			bool setCallbackFcn(void (*pcallback_function)(const void* p),void *p);
+			bool isAttribAvail(const int_attrib::CamAttrib attrib);
+			bool isAttribAvail(const double_attrib::CamAttrib attrib);
+			bool isAttribAvail(const str_attrib::CamAttrib attrib);
+			bool isAttribAvail(const enum_attrib::CamAttrib attrib);
+			bool close();
+			std::string doDiagnose();
 		private:
 			void startCapture();
 			void stopCapture();

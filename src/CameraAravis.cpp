@@ -8,7 +8,7 @@ using namespace std;
 namespace camera
 {
 	void aravisCameraCallback(ArvStream *stream, CameraAravis *driver) {
-		cout << "Got something!!!" << endl;
+		cout << "aravisCameraCallback" << endl;
 		//TODO: Irgendwie sind Semaphoren doch ekelig und unötig, man kann auch direkt die Library-Funktionen von Aravis nutzen...
 		sem_post(&(driver->buffer_lock));
 		if(driver->callbackFcn != 0) {
@@ -81,9 +81,11 @@ namespace camera
 	
 	bool CameraAravis::retrieveFrame(base::samples::frame::Frame &frame,const int timeout) {
 		//Waiting for a picture becoming available...
+		sem_wait(&buffer_lock);
 		ArvBuffer* arv_buffer = arv_stream_pop_buffer(stream);
 		if(arv_buffer != NULL && arv_buffer->status == ARV_BUFFER_STATUS_SUCCESS) {
 			//Got valid frame
+			cout << "retriveFrame (valid)" << endl;
 			camera_buffer[current_frame].swap(frame);
 			if(camera_buffer[current_frame].getStatus() != base::samples::frame::STATUS_VALID) {
 				//When the frame is invalid, initialize it
@@ -95,9 +97,9 @@ namespace camera
 			return true;
 		} else {
 			//No pointer to buffer with data
+			cout << "retriveFrame (Wrong status)" << endl;
 			return false;
 		}
-		return true;
 	}
 
 	base::samples::frame::frame_mode_t CameraAravis::convertArvToFrameMode(ArvPixelFormat format) {
@@ -137,5 +139,31 @@ namespace camera
 		callbackData = p;
 		return true;
 	}
-
+	bool CameraAravis::isAttribAvail(const int_attrib::CamAttrib attrib) {
+		return false;
+	}
+	bool CameraAravis::isAttribAvail(const double_attrib::CamAttrib attrib) {
+		return false;
+	}
+	bool CameraAravis::isAttribAvail(const str_attrib::CamAttrib attrib) {
+		return false;
+	}
+	bool CameraAravis::isAttribAvail(const enum_attrib::CamAttrib attrib) {
+		return false;
+	}
+        bool CameraAravis::close() {
+		//TODO: Close Camera
+		return true;
+	}
+	std::string CameraAravis::doDiagnose() {
+		return "Here could be your super camera diagnose string...";
+	}
+	bool CameraAravis::isFrameAvailable() {
+		int value = 0;
+		if(-1 == sem_getvalue(&buffer_lock, &value)) {
+			perror("sem_getvalue");
+		}
+		cout << "IsFrameAvailable: " << value << endl;
+		return value > 0;
+	}
 }
