@@ -14,8 +14,8 @@ struct CamSettings {
 };
 
 //const string CAMERA_NAME = "Aravis-GV01";
-const CamSettings CAMERAS[] = {{"The Imaging Source Europe GmbH-42210449", 15.0, 10000, ARV_PIXEL_FORMAT_BAYER_GB_8},
-				{"The Imaging Source Europe GmbH-29210317", 15.0, 10000, ARV_PIXEL_FORMAT_BAYER_GB_8},
+const CamSettings CAMERAS[] = {{"The Imaging Source Europe GmbH-42210449", 1.0, 1000, ARV_PIXEL_FORMAT_BAYER_GB_8},
+				{"The Imaging Source Europe GmbH-29210317", 1.0, 1000, ARV_PIXEL_FORMAT_BAYER_GB_8},
 				{"Aravis-GV01", 1.0, 10000, ARV_PIXEL_FORMAT_MONO_8}
 				};
 bool shouldExit = false;

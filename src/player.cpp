@@ -4,6 +4,7 @@
 #include <cv.h>
 #include <highgui.h>
 #include <arv.h>
+#include "videolog.hpp"
 
 using namespace std;
 using namespace cv;
@@ -15,39 +16,31 @@ int main(int argn, char** argv) {
 	}
 
 	string logfileName = string(argv[1]);
-
-	FILE* logfile = fopen(logfileName.c_str(), "r");
-
-	if(!logfile) {
-		cerr << "Logfile konnte nicht geöffnet werden!" << endl;
-		return -1;
-	}
+	VideoLogfile logfile;
+	logfile.open(logfileName, READER);
 
 	//Create OpenCV Window
 	namedWindow("Video");
-	int32_t width, height, frame_id;
-	int64_t timestamp_ns;
 	int64_t last_timestamp = 0;
-	ArvPixelFormat format;
 
 	//Load Framestream
-	while(!feof(logfile)) {
-		fread(&width, sizeof(int32_t), 1, logfile);
-		fread(&height, sizeof(int32_t), 1, logfile);
-		fread(&frame_id, sizeof(int32_t), 1, logfile);
-		fread(&timestamp_ns, sizeof(int64_t), 1, logfile);
-		Mat image(Size(width, height), CV_8UC1);
-		fread(image.data, width*height, 1, logfile);
+	while(true) {
+		VideoFrame currentFrame;
 
-		cout << "Read frame... (id=" << frame_id << ", Timestamp: " << timestamp_ns << ")" << endl;
+		logfile >> currentFrame;
+
+		if(logfile.eof()) 
+			return 0;
+
+		cout << "Read frame... (id=" << currentFrame.frame_id << ", Timestamp: " << currentFrame.timestamp_ns << ")" << endl;
 		
 		Mat converted;
 
-		//cvtColor(image, converted, CV_BayerGB2RGB);
+		cvtColor(currentFrame.image, converted, CV_BayerGB2RGB);
 
-		imshow("Video", image);
-		int64_t timeToWait = last_timestamp != 0 ? (timestamp_ns - last_timestamp)/1000000 : 1;
-		last_timestamp = timestamp_ns;
+		imshow("Video", converted);
+		int64_t timeToWait = last_timestamp != 0 ? (currentFrame.timestamp_ns - last_timestamp)/1000000 : 1;
+		last_timestamp = currentFrame.timestamp_ns;
 		waitKey(timeToWait);
 	}
 }
