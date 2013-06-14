@@ -44,6 +44,9 @@ void VideoLogfile::operator>>(VideoFrame& outputFrame) {
 	fread(&height, sizeof(int32_t), 1, logfile);
 	fread(&frame_id, sizeof(int32_t), 1, logfile);
 	fread(&timestamp_ns, sizeof(int64_t), 1, logfile);
+	if(eof()) {
+		throw runtime_error("Incomplete Frame!");
+	}
 	Mat image(Size(width, height), CV_8UC1);
 	fread(image.data, width*height, 1, logfile);
 
