@@ -3,8 +3,13 @@
 #include <arv.h>
 #include <cstdio>
 #include <unistd.h>
+#include <cv.h>
+
+#include <frame_helper/BrightnessIndicator.h>
+#include <frame_helper/ExposureController.h>
 
 using namespace std;
+using namespace cv;
 
 struct CamSettings {
 	string name;
@@ -90,6 +95,10 @@ int main(int argc, const char *argv[])
 
 	FILE* logfile = openLogFile();
 
+	SimpleBrightnessIndicator sb;
+	LinearExposureController exposureController(100, 40);
+	exposureController.setExposureBounds(100, 70000);
+	exposureController.setCurrentExposure(exposure);
 	arv_camera_start_acquisition(camera);
 
 	//Poll changes
@@ -98,8 +107,15 @@ int main(int argc, const char *argv[])
 		arv_buffer = arv_stream_pop_buffer(stream);
 		if(arv_buffer != NULL) {
 			if(arv_buffer->status == ARV_BUFFER_STATUS_SUCCESS) {
-				cout << "Got image "  << arv_buffer->frame_id << endl;
 				int width = arv_buffer->width, height = arv_buffer->height;
+
+				Mat image(height, width, CV_8UC1, arv_buffer->data);
+
+				int brightness = sb.getBrightness(image);
+				cout << "Got image "  << arv_buffer->frame_id << " Brightness: " << brightness << endl;
+
+				exposure = exposureController.getNewExposure(brightness);
+				arv_camera_set_exposure_time(camera, exposure);
 
 				//Check frame format
 				saveFrame(logfile, arv_buffer); 
@@ -111,6 +127,7 @@ int main(int argc, const char *argv[])
 			cout << "No data" << endl;
 		}
 	}
+	cout << "Exiting" << endl;
 	arv_camera_stop_acquisition(camera);
 	g_object_unref(stream);
 

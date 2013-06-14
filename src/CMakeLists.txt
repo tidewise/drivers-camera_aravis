@@ -15,4 +15,4 @@ rock_executable(aravis-test-converter videolog.cpp converter.cpp
 	DEPS_PKGCONFIG aravis-0.4 opencv)
 
 rock_executable(aravis-test-recorder recorder.cpp
-	DEPS_PKGCONFIG aravis-0.4 opencv)
+	DEPS_PKGCONFIG aravis-0.4 opencv frame_helper)
