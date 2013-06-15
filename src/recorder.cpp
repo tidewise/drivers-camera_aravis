@@ -44,11 +44,15 @@ FILE* openLogFile() {
 }
 
 void saveFrame(FILE* fhandle, ArvBuffer* frame) {
-	fwrite(&(frame->width), sizeof(frame->width), 1, fhandle);
-	fwrite(&(frame->height), sizeof(frame->height), 1, fhandle);
-	fwrite(&(frame->frame_id), sizeof(frame->frame_id), 1, fhandle);
-	fwrite(&(frame->timestamp_ns), sizeof(frame->timestamp_ns), 1, fhandle);
-	fwrite(frame->data, frame->size, 1, fhandle);
+	int ret = fwrite(&(frame->width), sizeof(frame->width), 1, fhandle);
+	int ret2 = fwrite(&(frame->height), sizeof(frame->height), 1, fhandle);
+	int ret3 = fwrite(&(frame->frame_id), sizeof(frame->frame_id), 1, fhandle);
+	int ret4 = fwrite(&(frame->timestamp_ns), sizeof(frame->timestamp_ns), 1, fhandle);
+	int ret5 = fwrite(frame->data, frame->size, 1, fhandle);
+
+	if(!(ret && ret2 && ret3 && ret4 && ret5)) {
+		throw runtime_error("Error on write!");
+	}
 }
 
 void atExit(int signum) {
@@ -104,7 +108,7 @@ int main(int argc, const char *argv[])
 	FILE* logfile = openLogFile();
 
 	SimpleBrightnessIndicator sb;
-	LinearExposureController exposureController(100, 40);
+	LinearExposureController exposureController(100, 3, 10);
 	exposureController.setExposureBounds(100, 70000);
 	exposureController.setCurrentExposure(exposure);
 	arv_camera_start_acquisition(camera);
