@@ -26,7 +26,15 @@ const CamSettings CAMERAS[] = {{"The Imaging Source Europe GmbH-42210449", 1.0, 
 bool shouldExit = false;
 
 FILE* openLogFile() {
-	FILE* fdesc = fopen("video.dat", "w");
+	time_t rawtime;
+	struct tm * timeinfo;
+
+	time (&rawtime);
+	timeinfo = localtime (&rawtime);
+
+	char buffer[255];
+	strftime(buffer, 255, "video-%Y-%m-%d-%H%M%S.dat", timeinfo);
+	FILE* fdesc = fopen(buffer, "w");
 	if(!fdesc) {
 		cerr << "Fehler beim öffnen der Logdatei..." << endl;
 		exit(-1);
@@ -115,6 +123,7 @@ int main(int argc, const char *argv[])
 				cout << "Got image "  << arv_buffer->frame_id << " Brightness: " << brightness << endl;
 
 				exposure = exposureController.getNewExposure(brightness);
+				std::cout << "Exposure: " << exposure << std::endl;
 				arv_camera_set_exposure_time(camera, exposure);
 
 				//Check frame format
