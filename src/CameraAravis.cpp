@@ -10,7 +10,9 @@ namespace camera
 	void aravisCameraCallback(ArvStream *stream, CameraAravis *driver) {
 		cout << "aravisCameraCallback" << endl;
 		//TODO: Irgendwie sind Semaphoren doch ekelig und unötig, man kann auch direkt die Library-Funktionen von Aravis nutzen...
-		sem_post(&(driver->buffer_lock));
+		pthread_mutex_lock(&(driver->buffer_counter_lock));
+		driver->buffer_counter++;
+		pthread_mutex_unlock(&(driver->buffer_counter_lock));
 		if(driver->callbackFcn != 0) {
 			driver->callbackFcn(driver->callbackData);
 		}
@@ -25,7 +27,8 @@ namespace camera
 		current_frame = 0;
 		buffer_len = 0;
 		callbackFcn = 0;
-		sem_init(&buffer_lock, 0, 0);
+		buffer_counter = 0;
+		pthread_mutex_init(&buffer_counter_lock, NULL);
 	}
 	CameraAravis::~CameraAravis() {
 		if(camera_buffer != 0) {
@@ -78,27 +81,65 @@ namespace camera
 			arv_stream_push_buffer (stream, arv_buffer_new (payload, camera_buffer[i].getImagePtr()));
 		}
 	}
+
+	void CameraAravis::printBufferStatus() {
+		gint input_length, output_length;
+		arv_stream_get_n_buffers(stream, &input_length, &output_length);
+		cout << "Output Queue Length: " << output_length << " Input Queue Length: " << input_length << endl;
+	}
 	
 	bool CameraAravis::retrieveFrame(base::samples::frame::Frame &frame,const int timeout) {
-		//Waiting for a picture becoming available...
-		sem_wait(&buffer_lock);
+		printBufferStatus();
 		ArvBuffer* arv_buffer = arv_stream_pop_buffer(stream);
-		if(arv_buffer != NULL && arv_buffer->status == ARV_BUFFER_STATUS_SUCCESS) {
-			//Got valid frame
-			cout << "retriveFrame (valid)" << endl;
-			camera_buffer[current_frame].swap(frame);
-			if(camera_buffer[current_frame].getStatus() != base::samples::frame::STATUS_VALID) {
-				//When the frame is invalid, initialize it
-				camera_buffer[current_frame].init(width, height, 8, convertArvToFrameMode(format), 128, payload);
-			}
-			arv_stream_push_buffer(stream, arv_buffer_new(payload, camera_buffer[current_frame].getImagePtr()));
+		if(arv_buffer != NULL) {
+			if(arv_buffer->status == ARV_BUFFER_STATUS_SUCCESS) {
+				pthread_mutex_lock(&buffer_counter_lock);
+				buffer_counter--;
+				pthread_mutex_unlock(&buffer_counter_lock);
+				//Got valid frame
+				cout << "retriveFrame (valid)" << endl;
 
-			current_frame = (current_frame + 1) % buffer_len;
-			return true;
+				camera_buffer[current_frame].swap(frame);
+				frame.setStatus(base::samples::frame::STATUS_VALID);
+				if(camera_buffer[current_frame].getStatus() != base::samples::frame::STATUS_VALID) {
+					//When the frame is invalid, initialize it
+					camera_buffer[current_frame].init(width, height, 8, convertArvToFrameMode(format), 128, payload);
+				}
+				arv_stream_push_buffer(stream, arv_buffer_new(payload, camera_buffer[current_frame].getImagePtr()));
+
+				current_frame = (current_frame + 1) % buffer_len;
+				return true;
+			} else {
+				cout << "Wrong status of buffer: " << getBufferStatusString(arv_buffer->status) << endl;
+				buffer_counter--;
+				arv_stream_push_buffer(stream, arv_buffer_new(payload, camera_buffer[current_frame].getImagePtr()));
+				current_frame = (current_frame + 1) % buffer_len;
+				return false;
+			}
 		} else {
-			//No pointer to buffer with data
-			cout << "retriveFrame (Wrong status)" << endl;
+			cout << "Got Null pointer for buffer" << endl;
 			return false;
+		}
+	}
+	std::string CameraAravis::getBufferStatusString(ArvBufferStatus status) {
+		switch(status) {
+			case ARV_BUFFER_STATUS_SUCCESS:
+				return "ARV_BUFFER_STATUS_SUCCESS";
+			case ARV_BUFFER_STATUS_MISSING_PACKETS:
+				return "ARV_BUFFER_STATUS_MISSING_PACKETS";
+			case ARV_BUFFER_STATUS_CLEARED:
+				return "ARV_BUFFER_STATUS_CLEARED";
+			case ARV_BUFFER_STATUS_TIMEOUT:
+				return "ARV_BUFFER_STATUS_TIMEOUT";
+			case ARV_BUFFER_STATUS_WRONG_PACKET_ID:
+				return "ARV_BUFFER_STATUS_WRONG_PACKET_ID";
+			case ARV_BUFFER_STATUS_SIZE_MISMATCH:
+				return "ARV_BUFFER_STATUS_SIZE_MISMATCH";
+			case ARV_BUFFER_STATUS_FILLING:
+				return "ARV_BUFFER_STATUS_FILLING";
+			case ARV_BUFFER_STATUS_ABORTED:
+				return "ARV_BUFFER_STATUS_ABORTED";
+
 		}
 	}
 
@@ -132,6 +173,42 @@ namespace camera
 		}
 		return true;
 	}
+       	bool CameraAravis::setAttrib(const int_attrib::CamAttrib attrib,const int value) {
+		switch(attrib) {
+			case int_attrib::ExposureValue:
+				arv_camera_set_exposure_time(camera, value);
+				break;
+			case int_attrib::GainValue:
+				arv_camera_set_gain(camera, value);
+				break;
+		}
+	}
+        int CameraAravis::getAttrib(const int_attrib::CamAttrib attrib) {
+		switch(attrib) {
+			case int_attrib::ExposureValue:
+				return arv_camera_get_exposure_time(camera);
+			case int_attrib::GainValue:
+				return arv_camera_get_gain(camera);
+		}
+	}
+
+	bool CameraAravis::setFrameSettings(  const base::samples::frame::frame_size_t size, 
+                                          const base::samples::frame::frame_mode_t mode,
+                                          const uint8_t color_depth,
+                                          const bool resize_frames) {
+		ArvPixelFormat targetPixelFormat;
+		switch(mode) {
+			case base::samples::frame::MODE_BAYER:
+				targetPixelFormat = ARV_PIXEL_FORMAT_BAYER_GB_8;
+				break;
+			case base::samples::frame::MODE_GRAYSCALE:
+				targetPixelFormat = ARV_PIXEL_FORMAT_MONO_8;
+				break;
+
+		}
+		arv_camera_set_pixel_format(camera, targetPixelFormat);
+		return true;
+	}
 
 	bool CameraAravis::setCallbackFcn(void (*pcallback_function)(const void* p),void *p) {
 		cout << "Register Callback Fcn" << endl;
@@ -140,6 +217,9 @@ namespace camera
 		return true;
 	}
 	bool CameraAravis::isAttribAvail(const int_attrib::CamAttrib attrib) {
+		if(attrib == int_attrib::ExposureValue || attrib == int_attrib::GainValue) {
+			return true;
+		}
 		return false;
 	}
 	bool CameraAravis::isAttribAvail(const double_attrib::CamAttrib attrib) {
@@ -159,11 +239,16 @@ namespace camera
 		return "Here could be your super camera diagnose string...";
 	}
 	bool CameraAravis::isFrameAvailable() {
+		//HACK: Eigentlich sollte der Task mit Callback benutzt werden, dann ist diese Methode eigentlich gar nicht notwendig, aber der camera_base Task erwartet
+		//trotzdem das hier sinnvolle Werte zurückgegeben werden
+		return buffer_counter > 0;
+		
+		/*
 		int value = 0;
 		if(-1 == sem_getvalue(&buffer_lock, &value)) {
 			perror("sem_getvalue");
 		}
 		cout << "IsFrameAvailable: " << value << endl;
-		return value > 0;
+		return value > 0;*/
 	}
 }
