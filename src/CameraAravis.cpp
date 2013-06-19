@@ -18,7 +18,7 @@ namespace camera
 		}
 	}
 
-	CameraAravis::CameraAravis() {
+	CameraAravis::CameraAravis() : exposureController(100, 3, 10){
 		g_type_init();
 
 		camera = 0;
@@ -28,6 +28,7 @@ namespace camera
 		buffer_len = 0;
 		callbackFcn = 0;
 		buffer_counter = 0;
+		currentExposure = -1;
 		pthread_mutex_init(&buffer_counter_lock, NULL);
 	}
 	CameraAravis::~CameraAravis() {
@@ -58,6 +59,9 @@ namespace camera
 		
 		//Determine correct format of the frame
 		format = arv_camera_get_pixel_format(camera);
+
+		currentExposure = arv_camera_get_exposure_time(camera);
+		exposureController.setExposureBounds(100, 70000);
 	}
 
 	void CameraAravis::startCapture() {
@@ -108,6 +112,17 @@ namespace camera
 				arv_stream_push_buffer(stream, arv_buffer_new(payload, camera_buffer[current_frame].getImagePtr()));
 
 				current_frame = (current_frame + 1) % buffer_len;
+
+
+				//Adjust exposure if desired
+				if(autoExposure) {
+					cv::Mat image(height, width, CV_8UC1, arv_buffer->data);
+					int brightness = brightnessIndicator.getBrightness(image);
+					std::cout << "Brightness: " << brightness << std::endl;
+					currentExposure = exposureController.getNewExposure(brightness);
+					std::cout << "Exposure: " << currentExposure << std::endl;
+					arv_camera_set_exposure_time(camera, currentExposure);
+				}
 				return true;
 			} else {
 				cout << "Wrong status of buffer: " << getBufferStatusString(arv_buffer->status) << endl;
@@ -139,6 +154,8 @@ namespace camera
 				return "ARV_BUFFER_STATUS_FILLING";
 			case ARV_BUFFER_STATUS_ABORTED:
 				return "ARV_BUFFER_STATUS_ABORTED";
+			default:
+				throw runtime_error("Dieser Wert für ArvBufferStatus ist unbekannt!");
 
 		}
 	}
@@ -177,10 +194,12 @@ namespace camera
 		switch(attrib) {
 			case int_attrib::ExposureValue:
 				arv_camera_set_exposure_time(camera, value);
-				break;
+				return true;
 			case int_attrib::GainValue:
 				arv_camera_set_gain(camera, value);
-				break;
+				return true;
+			default:
+				return false;
 		}
 	}
         int CameraAravis::getAttrib(const int_attrib::CamAttrib attrib) {
@@ -189,6 +208,8 @@ namespace camera
 				return arv_camera_get_exposure_time(camera);
 			case int_attrib::GainValue:
 				return arv_camera_get_gain(camera);
+			default:
+				throw runtime_error("The attribute is not supported by the camera!");
 		}
 	}
 
@@ -203,6 +224,9 @@ namespace camera
 				break;
 			case base::samples::frame::MODE_GRAYSCALE:
 				targetPixelFormat = ARV_PIXEL_FORMAT_MONO_8;
+				break;
+			default:
+				throw runtime_error("Dieses PixelFormat wird nicht unterstüzt!");
 				break;
 
 		}
@@ -229,7 +253,32 @@ namespace camera
 		return false;
 	}
 	bool CameraAravis::isAttribAvail(const enum_attrib::CamAttrib attrib) {
+		if(attrib == enum_attrib::ExposureModeToManual || attrib == enum_attrib::ExposureModeToAuto) {
+			return true;
+		}
 		return false;
+	}
+	bool CameraAravis::setAttrib(const enum_attrib::CamAttrib attrib) {
+		switch(attrib) {
+			case enum_attrib::ExposureModeToManual:
+				autoExposure = false;
+				return true;
+			case enum_attrib::ExposureModeToAuto:
+				autoExposure = true;
+				return true;
+			default:
+				return false;
+		}
+	}
+	bool CameraAravis::isAttribSet(const enum_attrib::CamAttrib attrib) {
+		switch(attrib) {
+			case enum_attrib::ExposureModeToManual:
+				return !autoExposure;
+			case enum_attrib::ExposureModeToAuto:
+				return autoExposure;
+			default:
+				return false;
+		}
 	}
         bool CameraAravis::close() {
 		//TODO: Close Camera

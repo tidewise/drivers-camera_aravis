@@ -1,7 +1,7 @@
 rock_library(camera_aravis
 	SOURCES CameraAravis.cpp
 	HEADERS CameraAravis.hpp
-	DEPS_PKGCONFIG camera_interface aravis-0.4
+	DEPS_PKGCONFIG camera_interface aravis-0.4 frame_helper
 	)
 
 rock_executable(camera_aravis_test CameraAravisTest.cpp

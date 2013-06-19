@@ -6,6 +6,10 @@
 #include <camera_interface/CamInterface.h>
 #include <arv.h>
 
+#include <frame_helper/BrightnessIndicator.h>
+#include <frame_helper/ExposureController.h>
+
+
 #include <semaphore.h>
 
 namespace camera
@@ -28,6 +32,8 @@ namespace camera
 			std::string doDiagnose();
 			bool setAttrib(const int_attrib::CamAttrib attrib,const int value);
 			int getAttrib(const int_attrib::CamAttrib attrib);
+			bool setAttrib(const enum_attrib::CamAttrib attrib);
+			bool isAttribSet(const enum_attrib::CamAttrib attrib);
 			bool setFrameSettings(  const base::samples::frame::frame_size_t size, 
 					const base::samples::frame::frame_mode_t mode,
 					const uint8_t color_depth,
@@ -45,7 +51,11 @@ namespace camera
 			int current_frame;
 			int buffer_len;
 			int width, height;
+			bool autoExposure;
+			int currentExposure;
 			unsigned int payload;
+			SimpleBrightnessIndicator brightnessIndicator;
+			LinearExposureController exposureController;
 			pthread_mutex_t buffer_counter_lock;
 			int buffer_counter;
 			void (*callbackFcn)(const void* p);
