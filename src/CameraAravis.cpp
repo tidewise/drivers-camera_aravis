@@ -62,6 +62,9 @@ namespace camera
 
 		currentExposure = arv_camera_get_exposure_time(camera);
 		exposureController.setExposureBounds(100, 70000);
+
+		//HACK: Hardcoded frame rate
+		arv_camera_set_frame_rate(camera, 3.75);
 	}
 
 	void CameraAravis::startCapture() {
