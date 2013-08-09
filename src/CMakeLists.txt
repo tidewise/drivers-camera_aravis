@@ -17,9 +17,6 @@ rock_executable(aravis-test-converter videolog.cpp converter.cpp
 rock_executable(aravis-test-recorder recorder.cpp
 	DEPS_PKGCONFIG aravis-0.4 opencv frame_helper)
 
-rock_executable(aravis-test-exposure exposureTest.cpp
-	DEPS_PKGCONFIG aravis-0.4 opencv frame_helper)
-
 rock_executable(aravis-test-pid pid.cpp
 	DEPS_PKGCONFIG aravis-0.4 opencv frame_helper motor_controller)
 
