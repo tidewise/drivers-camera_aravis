@@ -108,9 +108,7 @@ int main(int argc, const char *argv[])
 	FILE* logfile = openLogFile();
 
 	SimpleBrightnessIndicator sb;
-	LinearExposureController exposureController(100, 3, 10);
-	exposureController.setExposureBounds(100, 70000);
-	exposureController.setCurrentExposure(exposure);
+	ExposureController exposureController(100, 70000, 5, exposure);
 	arv_camera_start_acquisition(camera);
 
 	//Poll changes
@@ -126,7 +124,7 @@ int main(int argc, const char *argv[])
 				int brightness = sb.getBrightness(image);
 				cout << "Got image "  << arv_buffer->frame_id << " Brightness: " << brightness << endl;
 
-				exposure = exposureController.getNewExposure(brightness);
+				exposure = exposureController.update(brightness, 100);
 				std::cout << "Exposure: " << exposure << std::endl;
 				arv_camera_set_exposure_time(camera, exposure);
 
