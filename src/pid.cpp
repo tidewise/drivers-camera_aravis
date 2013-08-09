@@ -112,9 +112,6 @@ int main(int argc, const char *argv[])
 	regions.push_back(WeightedRect(-1.0, -1.0, 1.0, 1.0, 1));
 	regions.push_back(WeightedRect(-0.3, -0.3, 0.3, 0.3, 3)); 
 	WeightedBoxesBrightnessIndicator sb(regions);
-	LinearExposureController exposureController(100, 3, 10);
-	exposureController.setExposureBounds(100, 70000);
-	exposureController.setCurrentExposure(exposure);
 	arv_camera_start_acquisition(camera);
 
 	//Poll changes

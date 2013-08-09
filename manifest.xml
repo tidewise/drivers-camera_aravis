@@ -11,4 +11,5 @@
   <depend package="drivers/camera_interface" />
   <depend package="image_processing/frame_helper" />
   <depend package="opencv" />
+  <depend package="control/motor_controller" />
 </package>
