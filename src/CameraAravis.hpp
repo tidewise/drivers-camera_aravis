@@ -8,6 +8,7 @@
 
 #include <frame_helper/BrightnessIndicator.h>
 #include <frame_helper/ExposureController.h>
+#include <boost/shared_ptr.hpp>
 
 
 #include <semaphore.h>
@@ -55,7 +56,7 @@ namespace camera
 			int currentExposure;
 			unsigned int payload;
 			SimpleBrightnessIndicator brightnessIndicator;
-			LinearExposureController exposureController;
+			boost::shared_ptr<ExposureController> exposureController;
 			pthread_mutex_t buffer_counter_lock;
 			int buffer_counter;
 			void (*callbackFcn)(const void* p);

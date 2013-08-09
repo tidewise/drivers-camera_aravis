@@ -9,7 +9,6 @@ namespace camera
 {
 	void aravisCameraCallback(ArvStream *stream, CameraAravis *driver) {
 		cout << "aravisCameraCallback" << endl;
-		//TODO: Irgendwie sind Semaphoren doch ekelig und unötig, man kann auch direkt die Library-Funktionen von Aravis nutzen...
 		pthread_mutex_lock(&(driver->buffer_counter_lock));
 		driver->buffer_counter++;
 		pthread_mutex_unlock(&(driver->buffer_counter_lock));
@@ -18,7 +17,7 @@ namespace camera
 		}
 	}
 
-	CameraAravis::CameraAravis() : exposureController(100, 3, 10){
+	CameraAravis::CameraAravis() {
 		g_type_init();
 
 		camera = 0;
@@ -61,7 +60,7 @@ namespace camera
 		format = arv_camera_get_pixel_format(camera);
 
 		currentExposure = arv_camera_get_exposure_time(camera);
-		exposureController.setExposureBounds(100, 70000);
+		exposureController.reset(new ExposureController(100, 70000, 5, currentExposure));
 
 		//HACK: Hardcoded frame rate
 		arv_camera_set_frame_rate(camera, 3.75);
@@ -122,7 +121,7 @@ namespace camera
 					cv::Mat image(height, width, CV_8UC1, arv_buffer->data);
 					int brightness = brightnessIndicator.getBrightness(image);
 					std::cout << "Brightness: " << brightness << std::endl;
-					currentExposure = exposureController.getNewExposure(brightness);
+					currentExposure = exposureController->update(brightness, 100);
 					std::cout << "Exposure: " << currentExposure << std::endl;
 					arv_camera_set_exposure_time(camera, currentExposure);
 				}
