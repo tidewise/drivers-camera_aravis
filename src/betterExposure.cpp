@@ -62,32 +62,28 @@ void atExit(int signum) {
 
 class NewExposureController {
 	private:
-		int currP;
 		int min, max, tolerance;
-		int lastExp, prevLastExp, prevLastValue;
+		int lastExp;
 		int calcNewValue(int measuredValue, int target) {
-			//if(measuredValue < target - tolerance || measuredValue > target + tolerance) {
-			return currP * (target - measuredValue);
-			/*} else {
-				return currP;
-			}*/
+			if(measuredValue == 0) {
+				return lastExp + 1000;
+			}
+			if(abs(measuredValue - target) > tolerance) { 
+				double mx = lastExp * 1.0 / measuredValue;
+				cout << "MX:" << mx << endl;
+				return mx * target;
+			} else {
+				return lastExp;
+			}
 		}	
 	public:
-		NewExposureController(int _min, int _max, int _initial, int _tolerance, int _currentExp) : min(_min), max(_max), currP(_initial), tolerance(_tolerance), lastExp(_currentExp), prevLastExp(0) {}
+		NewExposureController(int _min, int _max, int _tolerance, int _currentExp) : tolerance(_tolerance), min(_min), max(_max), lastExp(_currentExp) {}
 		int update(int measuredValue, int target) {
 			int value = calcNewValue(measuredValue, target);
 			value = std::min(max, value);
 			value = std::max(min, value);
-			
-			if(prevLastExp != 0 && measuredValue - prevLastValue != 0) {
-				cout << "Diff Exp: " << lastExp - prevLastExp << endl;
-				cout << "Diff Value: " <<(measuredValue - prevLastValue) << endl;
-				currP = (lastExp - prevLastExp) / (measuredValue - prevLastValue);
-			}
-			
-			prevLastExp = lastExp;
-			prevLastValue = measuredValue;
 			lastExp = value;
+			
 			return value;
 		}
 };
@@ -141,11 +137,12 @@ int main(int argc, const char *argv[])
 	//FILE* logfile = openLogFile();
 
 	SimpleBrightnessIndicator sb;
-	NewExposureController exposureController(100, 70000, 30, 10, exposure); 
+	NewExposureController exposureController(100, 70000, 5, exposure); 
 	arv_camera_start_acquisition(camera);
 
 	//Poll changes
 	ArvBuffer *arv_buffer = 0, *last_buffer = 0;
+	namedWindow("Video");
 
 	while(!shouldExit) {
 		arv_buffer = arv_stream_pop_buffer(stream);
@@ -159,8 +156,16 @@ int main(int argc, const char *argv[])
 				cout << "Got image "  << arv_buffer->frame_id << " Brightness: " << brightness << " Exposure: " << exposure << endl;
 
 				std::cout << "Exposure: " << exposure << std::endl;
-				exposure = exposureController.update(brightness, 100);
-				arv_camera_set_exposure_time(camera, exposure);
+				if(arv_buffer->frame_id % 4 == 0) {
+					exposure = exposureController.update(brightness, 100);
+					arv_camera_set_exposure_time(camera, exposure);
+				}
+				
+				Mat converted;
+
+				cvtColor(image, converted, CV_BayerGB2RGB);
+				imshow("Video", converted);
+				waitKey(1);
 
 				//Check frame format
 				//saveFrame(logfile, arv_buffer); 
