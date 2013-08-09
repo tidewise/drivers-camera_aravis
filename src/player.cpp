@@ -5,6 +5,7 @@
 #include <highgui.h>
 #include <arv.h>
 #include "videolog.hpp"
+#include "frame_helper/AutoWhiteBalance.h"
 
 using namespace std;
 using namespace cv;
@@ -37,6 +38,11 @@ int main(int argn, char** argv) {
 		Mat converted;
 
 		cvtColor(currentFrame.image, converted, CV_BayerGB2RGB);
+
+		//Add auto white balance
+		AutoWhiteBalancer* awb = AutoWhiteBalance::createAutoWhiteBalancer(converted);
+		awb->applyCalibration(converted);
+		delete awb;
 
 		imshow("Video", converted);
 		int64_t timeToWait = last_timestamp != 0 ? (currentFrame.timestamp_ns - last_timestamp)/1000000 : 1;
