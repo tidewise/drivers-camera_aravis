@@ -3,6 +3,7 @@
 #include <cv.h>
 #include <highgui.h>
 #include <unistd.h>
+#include <frame_helper/FrameHelper.h>
 
 #include <semaphore.h>
 #include <exception>
@@ -38,17 +39,21 @@ int main(int argc, const char *argv[])
 	sem_init(&buffer_sync, 0, 0);
 
 	cam = new CameraAravis();
-	//cam->openCamera("The Imaging Source Europe GmbH-42210449");
-	cam->openCamera("Aravis-GV01");
+	cam->openCamera("The Imaging Source Europe GmbH-42210449");
+	//cam->openCamera("Aravis-GV01");
 	cam->grab(camera::Continuously, 50);
+	cam->setAttrib(camera::enum_attrib::WhitebalModeToAuto);
+	cam->setFrameSettings(base::samples::frame::frame_size_t(), base::samples::frame::MODE_BAYER, 8, false);
 	//cam->setCallbackFcn(newFrameCallback, 0);
 	cv::namedWindow("Test");
 	while(!finished) {
 		base::samples::frame::Frame newFrame;
 		if(cam->isFrameAvailable()) {
 			if(cam->retrieveFrame(newFrame, 0)) {
+				cout << "Mode: " << newFrame.getFrameMode() << " Init: " << newFrame.getStatus() << endl;
+				cout << "Width:" << newFrame.getWidth() << " Height: " << newFrame.getHeight() << endl;
 				// retrieveFrame returns true if we have got a new frame...
-				cv::Mat myImage(newFrame.getWidth(), newFrame.getHeight(), CV_8UC1, newFrame.getImagePtr(), 1);
+				cv::Mat myImage = frame_helper::FrameHelper::convertToCvMat(newFrame);
 				cv::imshow("Test", myImage);
 
 			} else {

@@ -1,5 +1,8 @@
 #include "CameraAravis.hpp"
 
+#include <frame_helper/AutoWhiteBalance.h>
+#include <frame_helper/FrameHelper.h>
+
 #include <exception>
 #include <semaphore.h>
 
@@ -28,6 +31,9 @@ namespace camera
 		callbackFcn = 0;
 		buffer_counter = 0;
 		currentExposure = -1;
+		exposureFrameCounter = 0;
+		autoWhitebalance = false;
+		autoExposure = false;
 		pthread_mutex_init(&buffer_counter_lock, NULL);
 	}
 	CameraAravis::~CameraAravis() {
@@ -115,9 +121,26 @@ namespace camera
 
 				current_frame = (current_frame + 1) % buffer_len;
 
+				//AutoWhitebalance if desired
+				if(autoWhitebalance && arv_buffer->pixel_format == ARV_PIXEL_FORMAT_BAYER_GB_8) {
+					base::samples::frame::Frame convertedFrame(height, width, 8, base::samples::frame::MODE_RGB);
+					cout << "Channel Count: " << convertedFrame.getChannelCount() << endl;
+					cout << "Data depth: " << convertedFrame.getDataDepth() << endl;
+					cv::Mat image(height, width, CV_8UC1, arv_buffer->data);
+					cv::Mat converted = frame_helper::FrameHelper::convertToCvMat(convertedFrame);
+					cv::cvtColor(image, converted, CV_BayerGB2RGB);
+
+					//AutoWhiteBalancer* awb = AutoWhiteBalance::createAutoWhiteBalancer(converted);
+					//awb->applyCalibration(converted);
+					//delete awb;
+					//frame.swap(convertedFrame);
+				}
+
 
 				//Adjust exposure if desired
-				if(autoExposure) {
+				//Only use every third frame otherwise the controller is not stable because of the
+				//async behaviour of arv_camera_set_exposure_time
+				if(autoExposure && (exposureFrameCounter % 3 == 0)) {
 					cv::Mat image(height, width, CV_8UC1, arv_buffer->data);
 					int brightness = brightnessIndicator.getBrightness(image);
 					std::cout << "Brightness: " << brightness << std::endl;
@@ -125,6 +148,7 @@ namespace camera
 					std::cout << "Exposure: " << currentExposure << std::endl;
 					arv_camera_set_exposure_time(camera, currentExposure);
 				}
+				++exposureFrameCounter;
 				return true;
 			} else {
 				cout << "Wrong status of buffer: " << getBufferStatusString(arv_buffer->status) << endl;
@@ -219,9 +243,11 @@ namespace camera
                                           const base::samples::frame::frame_mode_t mode,
                                           const uint8_t color_depth,
                                           const bool resize_frames) {
+		cout << "setFrameSettings" << endl;
 		ArvPixelFormat targetPixelFormat;
 		switch(mode) {
 			case base::samples::frame::MODE_BAYER:
+				cout << "Bayer" << endl;
 				targetPixelFormat = ARV_PIXEL_FORMAT_BAYER_GB_8;
 				break;
 			case base::samples::frame::MODE_GRAYSCALE:
@@ -255,7 +281,10 @@ namespace camera
 		return false;
 	}
 	bool CameraAravis::isAttribAvail(const enum_attrib::CamAttrib attrib) {
-		if(attrib == enum_attrib::ExposureModeToManual || attrib == enum_attrib::ExposureModeToAuto) {
+		if(attrib == enum_attrib::ExposureModeToManual ||
+				attrib == enum_attrib::ExposureModeToAuto ||
+				attrib == enum_attrib::WhitebalModeToAuto ||
+				attrib == enum_attrib::WhitebalModeToManual) {
 			return true;
 		}
 		return false;
@@ -268,6 +297,12 @@ namespace camera
 			case enum_attrib::ExposureModeToAuto:
 				autoExposure = true;
 				return true;
+			case enum_attrib::WhitebalModeToManual:
+				autoWhitebalance = false;
+				return true;
+			case enum_attrib::WhitebalModeToAuto:
+				autoWhitebalance = true;
+				return true;
 			default:
 				return false;
 		}
@@ -278,6 +313,10 @@ namespace camera
 				return !autoExposure;
 			case enum_attrib::ExposureModeToAuto:
 				return autoExposure;
+			case enum_attrib::WhitebalModeToManual:
+				return !autoWhitebalance;
+			case enum_attrib::WhitebalModeToAuto:
+				return autoWhitebalance;
 			default:
 				return false;
 		}
