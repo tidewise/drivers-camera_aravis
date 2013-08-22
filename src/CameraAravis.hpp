@@ -40,6 +40,7 @@ namespace camera
 					const uint8_t color_depth,
 					const bool resize_frames);
 		private:
+			int camera_b_balance, camera_r_balance, camera_g_balance;
 			std::string getBufferStatusString(ArvBufferStatus status);
 			void printBufferStatus();
 			void startCapture();

@@ -129,11 +129,36 @@ namespace camera
 					cv::Mat image(height, width, CV_8UC1, arv_buffer->data);
 					cv::Mat converted = frame_helper::FrameHelper::convertToCvMat(convertedFrame);
 					cv::cvtColor(image, converted, CV_BayerGB2RGB);
+					
+					AutoWhiteBalancer* awb = AutoWhiteBalance::createAutoWhiteBalancer(converted);
 
-					//AutoWhiteBalancer* awb = AutoWhiteBalance::createAutoWhiteBalancer(converted);
-					//awb->applyCalibration(converted);
-					//delete awb;
-					//frame.swap(convertedFrame);
+					if(awb->offsetRight[0] < 250) {
+						int err = 250 - awb->offsetRight[0];
+						std::cout << "B corr: " << err << std::endl;
+						camera_b_balance += err * 0.3;
+					}
+					if(awb->offsetRight[1] < 250) {
+						int err = 250 - awb->offsetRight[1];
+						std::cout << "G corr: " << err << std::endl;
+						camera_g_balance += err * 0.3;
+					}
+					if(awb->offsetRight[2] < 250) {
+						int err = 250 - awb->offsetRight[2];
+						std::cout << "R corr: " << err << std::endl;
+						camera_r_balance += err * 0.3;
+					}
+
+					double norm = sqrt((camera_b_balance * camera_b_balance) + (camera_r_balance + camera_r_balance) + (camera_g_balance * camera_g_balance));
+					camera_b_balance = (camera_b_balance / norm) * 255;
+					camera_r_balance = (camera_r_balance / norm) * 255;
+					camera_g_balance = (camera_g_balance / norm) * 255;
+					arv_device_set_string_feature_value(arv_camera_get_device(camera), "BalanceRatioSelector", "Red");
+					arv_device_set_integer_feature_value(arv_camera_get_device(camera), "BalanceRatioRaw", camera_r_balance);
+					arv_device_set_string_feature_value(arv_camera_get_device(camera), "BalanceRatioSelector", "Green");
+					arv_device_set_integer_feature_value(arv_camera_get_device(camera), "BalanceRatioRaw", camera_g_balance);
+					arv_device_set_string_feature_value(arv_camera_get_device(camera), "BalanceRatioSelector", "Blue");
+					arv_device_set_integer_feature_value(arv_camera_get_device(camera), "BalanceRatioRaw", camera_b_balance);
+
 				}
 
 
@@ -302,6 +327,12 @@ namespace camera
 				return true;
 			case enum_attrib::WhitebalModeToAuto:
 				autoWhitebalance = true;
+				arv_device_set_string_feature_value(arv_camera_get_device(camera), "BalanceRatioSelector", "Red");
+				camera_r_balance = arv_device_get_integer_feature_value(arv_camera_get_device(camera), "BalanceRatioRaw");
+				arv_device_set_string_feature_value(arv_camera_get_device(camera), "BalanceRatioSelector", "Green");
+				camera_g_balance = arv_device_get_integer_feature_value(arv_camera_get_device(camera), "BalanceRatioRaw");
+				arv_device_set_string_feature_value(arv_camera_get_device(camera), "BalanceRatioSelector", "Blue");
+				camera_b_balance = arv_device_get_integer_feature_value(arv_camera_get_device(camera), "BalanceRatioRaw");
 				return true;
 			default:
 				return false;

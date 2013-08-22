@@ -8,6 +8,7 @@
 
 #include <frame_helper/BrightnessIndicator.h>
 #include <frame_helper/ExposureController.h>
+#include <frame_helper/AutoWhiteBalance.h>
 
 using namespace std;
 using namespace cv;
@@ -143,6 +144,14 @@ int main(int argc, const char *argv[])
 	//Poll changes
 	ArvBuffer *arv_buffer = 0, *last_buffer = 0;
 	namedWindow("Video");
+	
+	AutoWhiteBalancer *awb;
+	arv_device_set_string_feature_value(arv_camera_get_device(camera), "BalanceRatioSelector", "Red");
+	int camera_r_balance = arv_device_get_integer_feature_value(arv_camera_get_device(camera), "BalanceRatioRaw");
+	arv_device_set_string_feature_value(arv_camera_get_device(camera), "BalanceRatioSelector", "Green");
+	int camera_g_balance = arv_device_get_integer_feature_value(arv_camera_get_device(camera), "BalanceRatioRaw");
+	arv_device_set_string_feature_value(arv_camera_get_device(camera), "BalanceRatioSelector", "Blue");
+	int camera_b_balance = arv_device_get_integer_feature_value(arv_camera_get_device(camera), "BalanceRatioRaw");
 
 	while(!shouldExit) {
 		arv_buffer = arv_stream_pop_buffer(stream);
@@ -154,16 +163,53 @@ int main(int argc, const char *argv[])
 
 				int brightness = sb.getBrightness(image);
 				cout << "Got image "  << arv_buffer->frame_id << " Brightness: " << brightness << " Exposure: " << exposure << endl;
+				Mat converted;
+
+				cvtColor(image, converted, CV_BayerGB2RGB);
 
 				std::cout << "Exposure: " << exposure << std::endl;
 				if(arv_buffer->frame_id % 4 == 0) {
 					exposure = exposureController.update(brightness, 100);
 					arv_camera_set_exposure_time(camera, exposure);
+
+					awb = AutoWhiteBalance::createAutoWhiteBalancer(converted);
+					std::cout << "AWB B: " << awb->offsetRight[0] << "(250)"<< std::endl;
+					std::cout << "AWB G: " << awb->offsetRight[1] << std::endl;
+					std::cout << "AWB R: " << awb->offsetRight[2] << std::endl;
+
+					if(awb->offsetRight[0] < 250) {
+						int err = 250 - awb->offsetRight[0];
+						std::cout << "B corr: " << err << std::endl;
+						camera_b_balance += err * 0.3;
+					}
+					if(awb->offsetRight[1] < 250) {
+						int err = 250 - awb->offsetRight[1];
+						std::cout << "G corr: " << err << std::endl;
+						camera_g_balance += err * 0.3;
+					}
+					if(awb->offsetRight[2] < 250) {
+						int err = 250 - awb->offsetRight[2];
+						std::cout << "R corr: " << err << std::endl;
+						camera_r_balance += err * 0.3;
+					}
+
+					double norm = sqrt((camera_b_balance * camera_b_balance) + (camera_r_balance + camera_r_balance) + (camera_g_balance * camera_g_balance));
+					camera_b_balance = (camera_b_balance / norm) * 255;
+					camera_r_balance = (camera_r_balance / norm) * 255;
+					camera_g_balance = (camera_g_balance / norm) * 255;
+					arv_device_set_string_feature_value(arv_camera_get_device(camera), "BalanceRatioSelector", "Red");
+					arv_device_set_integer_feature_value(arv_camera_get_device(camera), "BalanceRatioRaw", camera_r_balance);
+					arv_device_set_string_feature_value(arv_camera_get_device(camera), "BalanceRatioSelector", "Green");
+					arv_device_set_integer_feature_value(arv_camera_get_device(camera), "BalanceRatioRaw", camera_g_balance);
+					arv_device_set_string_feature_value(arv_camera_get_device(camera), "BalanceRatioSelector", "Blue");
+					arv_device_set_integer_feature_value(arv_camera_get_device(camera), "BalanceRatioRaw", camera_b_balance);
+
+					std::cout << "Current Ratio B: " << camera_b_balance << std::endl;
+					std::cout << "Current Ratio G: " << camera_g_balance << std::endl;
+					std::cout << "Current Ratio R: " << camera_r_balance << std::endl;
 				}
 				
-				Mat converted;
-
-				cvtColor(image, converted, CV_BayerGB2RGB);
+				resize(converted, converted, Size(0,0), 0.6, 0.6);
 				imshow("Video", converted);
 				waitKey(1);
 
