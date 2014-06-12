@@ -8,6 +8,8 @@ rock_executable(camera_aravis_test CameraAravisTest.cpp
 	DEPS camera_aravis
 	DEPS_PKGCONFIG opencv)
 
+TARGET_LINK_LIBRARIES(camera_aravis_test pthread)
+
 rock_executable(aravis-test-player player.cpp videolog.cpp
 	DEPS_PKGCONFIG aravis-0.4 opencv)
 
