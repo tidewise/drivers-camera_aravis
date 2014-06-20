@@ -5,7 +5,7 @@
 #include <highgui.h>
 #include <arv.h>
 #include "videolog.hpp"
-#include "frame_helper/AutoWhiteBalance.h"
+#include "camera_interface/AutoWhiteBalance.h"
 
 using namespace std;
 using namespace cv;

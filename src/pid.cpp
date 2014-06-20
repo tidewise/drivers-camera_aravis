@@ -5,8 +5,8 @@
 #include <unistd.h>
 #include <cv.h>
 
-#include <frame_helper/BrightnessIndicator.h>
-#include <frame_helper/ExposureController.h>
+#include <camera_interface/BrightnessIndicator.h>
+#include <camera_interface/ExposureController.h>
 #include <motor_controller/PID.hpp>
 
 using namespace std;

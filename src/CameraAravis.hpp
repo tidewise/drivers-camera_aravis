@@ -6,8 +6,8 @@
 #include <camera_interface/CamInterface.h>
 #include <arv.h>
 
-#include <frame_helper/BrightnessIndicator.h>
-#include <frame_helper/ExposureController.h>
+#include <camera_interface/BrightnessIndicator.h>
+#include <camera_interface/ExposureController.h>
 #include <boost/shared_ptr.hpp>
 
 

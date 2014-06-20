@@ -6,9 +6,9 @@
 #include <cv.h>
 #include <algorithm>
 
-#include <frame_helper/BrightnessIndicator.h>
-#include <frame_helper/ExposureController.h>
-#include <frame_helper/AutoWhiteBalance.h>
+#include <camera_interface/BrightnessIndicator.h>
+#include <camera_interface/ExposureController.h>
+#include <camera_interface/AutoWhiteBalance.h>
 
 using namespace std;
 using namespace cv;
