@@ -11,7 +11,6 @@ using namespace std;
 namespace camera
 {
 	void aravisCameraCallback(ArvStream *stream, CameraAravis *driver) {
-		//cout << "aravisCameraCallback" << endl;
 		pthread_mutex_lock(&(driver->buffer_counter_lock));
 		driver->buffer_counter++;
 		pthread_mutex_unlock(&(driver->buffer_counter_lock));
@@ -73,14 +72,11 @@ namespace camera
 	}
 
 	void CameraAravis::startCapture() {
-		//cout << "Starting capturing ..." << endl;
 		int retval = g_signal_connect (stream, "new-buffer", G_CALLBACK (aravisCameraCallback), this);
 		arv_camera_start_acquisition(camera);
-		//cout << retval  << endl;
 	}
 
 	void CameraAravis::stopCapture() {
-		//cout << "Stopping capturing ..." << endl;
 		arv_camera_stop_acquisition(camera);
 	}
 
@@ -97,7 +93,6 @@ namespace camera
 	void CameraAravis::printBufferStatus() {
 		gint input_length, output_length;
 		arv_stream_get_n_buffers(stream, &input_length, &output_length);
-		cout << "Output Queue Length: " << output_length << " Input Queue Length: " << input_length << endl;
 	}
 	
 	bool CameraAravis::retrieveFrame(base::samples::frame::Frame &frame,const int timeout) {
@@ -109,7 +104,6 @@ namespace camera
 				buffer_counter--;
 				pthread_mutex_unlock(&buffer_counter_lock);
 				//Got valid frame
-				//cout << "retriveFrame (valid)" << endl;
 
 				camera_buffer[current_frame].swap(frame);
 				frame.setStatus(base::samples::frame::STATUS_VALID);
@@ -124,8 +118,6 @@ namespace camera
 				//AutoWhitebalance if desired
 				if(autoWhitebalance && arv_buffer->pixel_format == ARV_PIXEL_FORMAT_BAYER_GB_8) {
 					base::samples::frame::Frame convertedFrame(height, width, 8, base::samples::frame::MODE_RGB);
-//					cout << "Channel Count: " << convertedFrame.getChannelCount() << endl;
-//					cout << "Data depth: " << convertedFrame.getDataDepth() << endl;
 					cv::Mat image(height, width, CV_8UC1, arv_buffer->data);
 					cv::Mat converted = frame_helper::FrameHelper::convertToCvMat(convertedFrame);
 					cv::cvtColor(image, converted, CV_BayerGB2RGB);
@@ -134,17 +126,14 @@ namespace camera
 
 					if(awb->offsetRight[0] < 250) {
 						int err = 250 - awb->offsetRight[0];
-//						std::cout << "B corr: " << err << std::endl;
 						camera_b_balance += err * 0.3;
 					}
 					if(awb->offsetRight[1] < 250) {
 						int err = 250 - awb->offsetRight[1];
-//						std::cout << "G corr: " << err << std::endl;
 						camera_g_balance += err * 0.3;
 					}
 					if(awb->offsetRight[2] < 250) {
 						int err = 250 - awb->offsetRight[2];
-//						std::cout << "R corr: " << err << std::endl;
 						camera_r_balance += err * 0.3;
 					}
 
@@ -168,9 +157,7 @@ namespace camera
 				if(autoExposure && (exposureFrameCounter % 3 == 0)) {
 					cv::Mat image(height, width, CV_8UC1, arv_buffer->data);
 					int brightness = brightnessIndicator.getBrightness(image);
-//					std::cout << "Brightness: " << brightness << std::endl;
 					currentExposure = exposureController->update(brightness, 100);
-//					std::cout << "Exposure: " << currentExposure << std::endl;
 					arv_camera_set_exposure_time(camera, currentExposure);
 				}
 				++exposureFrameCounter;
@@ -268,11 +255,9 @@ namespace camera
                                           const base::samples::frame::frame_mode_t mode,
                                           const uint8_t color_depth,
                                           const bool resize_frames) {
-		//cout << "setFrameSettings" << endl;
 		ArvPixelFormat targetPixelFormat;
 		switch(mode) {
 			case base::samples::frame::MODE_BAYER:
-				//cout << "Bayer" << endl;
 				targetPixelFormat = ARV_PIXEL_FORMAT_BAYER_GB_8;
 				break;
 			case base::samples::frame::MODE_GRAYSCALE:
@@ -288,7 +273,6 @@ namespace camera
 	}
 
 	bool CameraAravis::setCallbackFcn(void (*pcallback_function)(const void* p),void *p) {
-		//cout << "Register Callback Fcn" << endl;
 		callbackFcn = pcallback_function;
 		callbackData = p;
 		return true;
