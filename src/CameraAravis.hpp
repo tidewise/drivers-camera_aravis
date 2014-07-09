@@ -34,6 +34,7 @@ namespace camera
 			bool setAttrib(const int_attrib::CamAttrib attrib,const int value);
 			int getAttrib(const int_attrib::CamAttrib attrib);
 			bool setAttrib(const enum_attrib::CamAttrib attrib);
+       	                bool setAttrib(const double_attrib::CamAttrib attrib,const double value);
 			bool isAttribSet(const enum_attrib::CamAttrib attrib);
 			bool setFrameSettings(  const base::samples::frame::frame_size_t size, 
 					const base::samples::frame::frame_mode_t mode,

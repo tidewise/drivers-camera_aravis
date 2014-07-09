@@ -66,9 +66,6 @@ namespace camera
 
 		currentExposure = arv_camera_get_exposure_time(camera);
 		exposureController.reset(new ExposureController(100, 70000, 5, currentExposure));
-
-		//HACK: Hardcoded frame rate
-		arv_camera_set_frame_rate(camera, 3.75);
 	}
 
 	void CameraAravis::startCapture() {
@@ -161,6 +158,7 @@ namespace camera
 					arv_camera_set_exposure_time(camera, currentExposure);
 				}
 				++exposureFrameCounter;
+                                frame.time = base::Time::now();
 				return true;
 			} else {
 				cout << "Wrong status of buffer: " << getBufferStatusString(arv_buffer->status) << endl;
@@ -240,6 +238,19 @@ namespace camera
 				return false;
 		}
 	}
+
+       	bool CameraAravis::setAttrib(const double_attrib::CamAttrib attrib,const double value) {
+		switch(attrib) {
+                    case double_attrib::FrameRate:
+		            arv_camera_stop_acquisition(camera);
+                            arv_camera_set_frame_rate(camera, value);
+                            arv_camera_start_acquisition(camera);
+                            return true;
+                    default:
+                            return false;
+		}
+	}
+
         int CameraAravis::getAttrib(const int_attrib::CamAttrib attrib) {
 		switch(attrib) {
 			case int_attrib::ExposureValue:
@@ -283,21 +294,26 @@ namespace camera
 		}
 		return false;
 	}
+
 	bool CameraAravis::isAttribAvail(const double_attrib::CamAttrib attrib) {
-		return false;
+                return  
+                        attrib == double_attrib::FrameRate
+                        ;
 	}
+
 	bool CameraAravis::isAttribAvail(const str_attrib::CamAttrib attrib) {
 		return false;
 	}
+
 	bool CameraAravis::isAttribAvail(const enum_attrib::CamAttrib attrib) {
-		if(attrib == enum_attrib::ExposureModeToManual ||
-				attrib == enum_attrib::ExposureModeToAuto ||
-				attrib == enum_attrib::WhitebalModeToAuto ||
-				attrib == enum_attrib::WhitebalModeToManual) {
-			return true;
-		}
-		return false;
+		return (
+                            attrib == enum_attrib::ExposureModeToManual ||
+			    attrib == enum_attrib::ExposureModeToAuto ||
+			    attrib == enum_attrib::WhitebalModeToAuto ||
+			    attrib == enum_attrib::WhitebalModeToManual
+                            );
 	}
+
 	bool CameraAravis::setAttrib(const enum_attrib::CamAttrib attrib) {
 		switch(attrib) {
 			case enum_attrib::ExposureModeToManual:
