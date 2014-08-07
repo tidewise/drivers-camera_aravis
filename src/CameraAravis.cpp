@@ -202,6 +202,8 @@ namespace camera
 				return base::samples::frame::MODE_BAYER_GBRG;
 			case ARV_PIXEL_FORMAT_MONO_8:
 				return base::samples::frame::MODE_GRAYSCALE;
+			case ARV_PIXEL_FORMAT_BAYER_RG_8:
+				return base::samples::frame::MODE_BAYER_RGGB;
 			default:
 				throw runtime_error("Frame Format unknown!");
 		}
@@ -273,6 +275,9 @@ namespace camera
 				break;
 			case base::samples::frame::MODE_GRAYSCALE:
 				targetPixelFormat = ARV_PIXEL_FORMAT_MONO_8;
+				break;
+			case base::samples::frame::MODE_BAYER_RGGB:
+				targetPixelFormat = ARV_PIXEL_FORMAT_BAYER_RG_8;
 				break;
 			default:
 				throw runtime_error("Dieses PixelFormat wird nicht unterstüzt!");
