@@ -221,11 +221,14 @@ namespace camera
 		}
 	}
 
-        // add missing color MODE_RGB
 	base::samples::frame::frame_mode_t CameraAravis::convertArvToFrameMode(ArvPixelFormat format) {
 		switch(format) {
 			case ARV_PIXEL_FORMAT_MONO_8:
 				return base::samples::frame::MODE_GRAYSCALE;
+			case ARV_PIXEL_FORMAT_RGB_8_PACKED:
+			        return base::samples::frame::MODE_RGB;
+			case ARV_PIXEL_FORMAT_BGR_8_PACKED:
+				return base::samples::frame::MODE_BGR;
 			case ARV_PIXEL_FORMAT_BAYER_GR_8:
 				return base::samples::frame::MODE_BAYER_GRBG;
 			case ARV_PIXEL_FORMAT_BAYER_RG_8:
@@ -299,7 +302,6 @@ namespace camera
 		}
 	}
 
-        // implement missing color format MODE_RGB 
         // add support BAYER (check which bayer pattern is supported by the camera and set it)
 	bool CameraAravis::setFrameSettings(  const base::samples::frame::frame_size_t size, 
                                           const base::samples::frame::frame_mode_t mode,
@@ -312,6 +314,12 @@ namespace camera
 				break;
 			case base::samples::frame::MODE_GRAYSCALE:
 			    targetPixelFormat = ARV_PIXEL_FORMAT_MONO_8;
+			    break;
+			case base::samples::frame::MODE_RGB:
+			    targetPixelFormat = ARV_PIXEL_FORMAT_RGB_8_PACKED;
+			    break;
+			case base::samples::frame::MODE_BGR:
+			    targetPixelFormat = ARV_PIXEL_FORMAT_BGR_8_PACKED;
 			    break;
 			case base::samples::frame::MODE_BAYER_GRBG:
 			    targetPixelFormat = ARV_PIXEL_FORMAT_BAYER_GR_8;
