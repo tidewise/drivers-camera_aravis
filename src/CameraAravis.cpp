@@ -43,7 +43,6 @@ namespace camera
 
 		camera = 0;
 		stream = 0;
-		camera_buffer = 0; // can be deleted after change
 		current_frame = 0;
 		buffer_len = 0;
 		callbackFcn = 0;
@@ -56,10 +55,6 @@ namespace camera
 	}
 
 	CameraAravis::~CameraAravis() {
-		 // can be deleted after change
-		if(camera_buffer != 0) {
-			delete[] camera_buffer;
-		}
 	}
 
 	void CameraAravis::openCamera(std::string camera_name) {
@@ -107,14 +102,7 @@ namespace camera
 
 	void CameraAravis::prepareBuffer(const size_t bufferLen) {
 
-                // TODO
-		// memory leak
-		// use instance object std::vector<frame::Frame> for camera_buffer
-                // when you can do camera_buffer.resize(bufferLen)
-		camera_buffer = new base::samples::frame::Frame[bufferLen];
-
-
-
+		camera_buffer.resize(bufferLen);
 		for (unsigned i = 0; i < bufferLen; ++i){
 			camera_buffer[i].init(width,height,8, convertArvToFrameMode(format),128,payload);
 			arv_stream_push_buffer (stream, arv_buffer_new (payload, camera_buffer[i].getImagePtr()));

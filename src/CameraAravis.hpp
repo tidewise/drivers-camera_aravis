@@ -55,7 +55,7 @@ namespace camera
 			ArvCamera *camera; 
 			ArvStream *stream;
 			ArvPixelFormat format;
-			base::samples::frame::Frame* camera_buffer; // replace with std::vector<Frame>
+			std::vector<base::samples::frame::Frame> camera_buffer; 
 			int current_frame;
 			int buffer_len;
 			int width, height;
