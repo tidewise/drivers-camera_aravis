@@ -59,6 +59,7 @@ namespace camera
 			int current_frame;
 			int buffer_len;
 			int width, height;
+			int region_x, region_y;
 			int exposureFrameCounter;
 			bool autoExposure;
 			bool autoWhitebalance;

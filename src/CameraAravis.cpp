@@ -242,7 +242,7 @@ namespace camera
 		}
 	}
 
-       // implement single shot (defined in camera interface)
+
         bool CameraAravis::grab(const GrabMode mode, const int buffer_len) {
 		if(camera == 0) {
 			throw runtime_error("Camera not configured, please open one with openCamera() first!");
@@ -252,8 +252,12 @@ namespace camera
 			case Continuously:
 				this->buffer_len = buffer_len;
 				prepareBuffer(buffer_len);
+			      //arv_camera_set_acquisition_mode (camera, ARV_ACQUISITION_MODE_CONTINUOUS)
 				startCapture();
 				break;
+			case SingleFrame:
+				arv_camera_set_acquisition_mode (camera, ARV_ACQUISITION_MODE_SINGLE_FRAME);
+				std::cout << "This mode is not implemented" << std::endl;
 			case Stop:
 				stopCapture();
 				break;
@@ -272,6 +276,14 @@ namespace camera
 			case int_attrib::GainValue:
 				arv_camera_set_gain(camera, value);
 				return true;
+			case int_attrib::RegionX:
+				arv_camera_get_region (camera, &region_x, &region_y, &width, &height);
+				arv_camera_set_region (camera, value, region_y, width, height);
+				return true;
+			case int_attrib::RegionY:
+				arv_camera_get_region (camera, &region_x, &region_y, &width, &height);
+				arv_camera_set_region (camera, region_x, value, width, height);
+				return true;
 			default:
 				return false;
 		}
@@ -281,9 +293,9 @@ namespace camera
        	bool CameraAravis::setAttrib(const double_attrib::CamAttrib attrib,const double value) {
 		switch(attrib) {
                     case double_attrib::FrameRate:
-		            arv_camera_stop_acquisition(camera);
+		            arv_camera_stop_acquisition(camera); //why?
                             arv_camera_set_frame_rate(camera, value);
-                            arv_camera_start_acquisition(camera);
+                            arv_camera_start_acquisition(camera);//why?
                             return true;
                     default:
                             return false;
@@ -351,10 +363,11 @@ namespace camera
 
         // implement missing attributes (look into camera_interface)
 	bool CameraAravis::isAttribAvail(const int_attrib::CamAttrib attrib) {
-		if(attrib == int_attrib::ExposureValue || attrib == int_attrib::GainValue) {
-			return true;
-		}
-		return false;
+		return (attrib == int_attrib::ExposureValue || 
+			attrib == int_attrib::GainValue || 
+			attrib == int_attrib::RegionX || 
+			attrib == int_attrib::RegionY
+			); 
 	}
 
         // implement missing attributes (look into camera_interface)
