@@ -25,9 +25,11 @@ namespace camera
 			~CameraAravis();
 			bool grab(const GrabMode mode = SingleFrame, const int buffer_len=1);
 			void openCamera(std::string camera_name);
+			ArvPixelFormat getBayerFormat ();
 			bool retrieveFrame(base::samples::frame::Frame &frame,const int timeout=1000);
 			bool isFrameAvailable();
 			bool setCallbackFcn(void (*pcallback_function)(const void* p),void *p);
+			bool setErrorCallbackFcn(void (*pcallback_function)(const void* p),void *p);
 			bool isAttribAvail(const int_attrib::CamAttrib attrib);
 			bool isAttribAvail(const double_attrib::CamAttrib attrib);
 			bool isAttribAvail(const str_attrib::CamAttrib attrib);
@@ -59,11 +61,8 @@ namespace camera
 			int current_frame;
 			int buffer_len;
 			int width, height;
-			int region_x, region_y;
 			int exposureFrameCounter;
-			bool autoExposure;
 			bool autoWhitebalance;
-			bool cancel;
 			int currentExposure;
 			unsigned int payload;
 			SimpleBrightnessIndicator brightnessIndicator;
@@ -72,6 +71,8 @@ namespace camera
 			int buffer_counter;
 			void (*callbackFcn)(const void* p);
 			void *callbackData;
+			void (*errorCallbackFcn)(const void* p);
+			void *errorCallbackData;
 			base::samples::frame::frame_mode_t convertArvToFrameMode(ArvPixelFormat format);
 
 			friend void aravisCameraCallback(ArvStream *stream, CameraAravis *driver);

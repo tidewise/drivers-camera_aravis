@@ -24,14 +24,11 @@ namespace camera
 	
 	void controlLostCallback (CameraAravis *driver) {
 		
-		std::cout << "Control lost" << std::endl;
-		driver->cancel = true;
-		throw runtime_error("The connection was lost");
+		std::cout << "ERROR: The connection was lost. Try to plug the camera and re-run the task." << std::endl;
+		if(driver->errorCallbackFcn != 0) {
+			driver->errorCallbackFcn(driver->callbackData);
+		}
 	}
-	// implement new callback for control-lost
-        // cache error (use mutex before setting variable)
-        // call driver callback
-        // throw error in retrieveFrame
 
 	CameraAravis::CameraAravis() {
 
@@ -50,7 +47,6 @@ namespace camera
 		currentExposure = -1;
 		exposureFrameCounter = 0;
 		autoWhitebalance = false;
-		autoExposure = false;
 		pthread_mutex_init(&buffer_counter_lock, NULL);
 	}
 
@@ -76,10 +72,6 @@ namespace camera
 		//Get Width and Height of Frames
 		arv_camera_get_region (camera, NULL, NULL, &width, &height);
 		
-		cout << "width: " << width << endl;
-		cout << "height: " << height << endl;
-		cout << "payload: " << payload << endl;
-
 		//Determine correct format of the frame
 		format = arv_camera_get_pixel_format(camera);
 		
@@ -115,7 +107,6 @@ namespace camera
 	}
 	
 	bool CameraAravis::retrieveFrame(base::samples::frame::Frame &frame,const int timeout) {
-		// cehck if error was chached and throw if yes
 		printBufferStatus();
 		ArvBuffer* arv_buffer = arv_stream_pop_buffer(stream);
 		if(arv_buffer != NULL) {
@@ -170,32 +161,37 @@ namespace camera
 
 				}
 				// Remove autoExposure 
-
+				
 
 				//Adjust exposure if desired
 				//Only use every third frame otherwise the controller is not stable because of the
 				//async behaviour of arv_camera_set_exposure_time
-				if(autoExposure && (exposureFrameCounter % 3 == 0)) {
+				/*if(autoExposure && (exposureFrameCounter % 3 == 0)) {
 					cv::Mat image(height, width, CV_8UC1, arv_buffer->data);
 					int brightness = brightnessIndicator.getBrightness(image);
 					currentExposure = exposureController->update(brightness, 100);
 					arv_camera_set_exposure_time(camera, currentExposure);
 				}
+
 				++exposureFrameCounter;
-                                frame.time = base::Time::now();
+				frame.time = base::Time::now();
 				return true;
-			} else {
-				cout << "Wrong status of buffer: " << getBufferStatusString(arv_buffer->status) << endl;
-				buffer_counter--;
-				arv_stream_push_buffer(stream, arv_buffer_new(payload, camera_buffer[current_frame].getImagePtr()));
-				current_frame = (current_frame + 1) % buffer_len;
-				return false;
-			}
-		} else {
+				} 
+				else {
+					cout << "Wrong status of buffer: " << getBufferStatusString(arv_buffer->status) << endl;
+					buffer_counter--;
+					arv_stream_push_buffer(stream, arv_buffer_new(payload, camera_buffer[current_frame].getImagePtr()));
+					current_frame = (current_frame + 1) % buffer_len;
+					return false;
+				}*/
+		} 
+		else {
 			cout << "Got Null pointer for buffer" << endl;
 			return false;
 		}
 	}
+	}
+
 	std::string CameraAravis::getBufferStatusString(ArvBufferStatus status) {
 		
 		switch(status) {
@@ -252,12 +248,14 @@ namespace camera
 			case Continuously:
 				this->buffer_len = buffer_len;
 				prepareBuffer(buffer_len);
-			      //arv_camera_set_acquisition_mode (camera, ARV_ACQUISITION_MODE_CONTINUOUS)
+			        arv_camera_set_acquisition_mode (camera, ARV_ACQUISITION_MODE_CONTINUOUS);
 				startCapture();
 				break;
-			case SingleFrame:
+			/*case SingleFrame:
 				arv_camera_set_acquisition_mode (camera, ARV_ACQUISITION_MODE_SINGLE_FRAME);
-				std::cout << "This mode is not implemented" << std::endl;
+				prepareBuffer(1);				
+				startCapture();
+				break;*/
 			case Stop:
 				stopCapture();
 				break;
@@ -267,42 +265,119 @@ namespace camera
 		return true;
 	}
 
-        // implement missing attributes (look into camera_interface CamTypes.h)
-       	bool CameraAravis::setAttrib(const int_attrib::CamAttrib attrib,const int value) {
-		switch(attrib) {
-			case int_attrib::ExposureValue:
-				arv_camera_set_exposure_time(camera, value);
-				return true;
-			case int_attrib::GainValue:
-				arv_camera_set_gain(camera, value);
-				return true;
-			case int_attrib::RegionX:
-				arv_camera_get_region (camera, &region_x, &region_y, &width, &height);
-				arv_camera_set_region (camera, value, region_y, width, height);
-				return true;
-			case int_attrib::RegionY:
-				arv_camera_get_region (camera, &region_x, &region_y, &width, &height);
-				arv_camera_set_region (camera, region_x, value, width, height);
-				return true;
-			default:
-				return false;
-		}
+	ArvPixelFormat CameraAravis::getBayerFormat (){
+		guint n;
+		gint64 * available_formats = arv_camera_get_available_pixel_formats(camera, &n);
+
+		for (guint x = 0; x<n; ++x){
+			switch (available_formats[x]){
+				case ARV_PIXEL_FORMAT_BAYER_GR_8:
+					return ARV_PIXEL_FORMAT_BAYER_GR_8;
+				case ARV_PIXEL_FORMAT_BAYER_RG_8:
+					return ARV_PIXEL_FORMAT_BAYER_RG_8;
+				case ARV_PIXEL_FORMAT_BAYER_GB_8:
+					return ARV_PIXEL_FORMAT_BAYER_GB_8;
+				case ARV_PIXEL_FORMAT_BAYER_BG_8:
+					return ARV_PIXEL_FORMAT_BAYER_BG_8;				
+			}
+ 		}			
+		//It is executed if any bayer mode was found
+		throw runtime_error("Bayer format is not supported by the camera");
 	}
 
-        // implement missing attributes (look into camera_interface)
+       	bool CameraAravis::setAttrib(const int_attrib::CamAttrib attrib,const int value) {
+		switch(attrib) {
+			case int_attrib::ExposureValue:{
+				cout << "value: " << value << endl;
+				arv_camera_set_exposure_time_auto(camera, ARV_AUTO_OFF);				
+				arv_camera_set_exposure_time(camera, value);
+				double exposure = arv_camera_get_exposure_time(camera);
+				cout << "exposure: " << exposure << endl;
+				if (exposure != value) throw runtime_error("The attribute 'exposure' could not be set");		
+				break;
+			}
+			case int_attrib::GainValue:{
+				arv_camera_set_gain(camera, value);
+				int gain = arv_camera_get_gain(camera);	
+				if (gain != value) throw runtime_error("The attribute 'gain' could not be set");
+				break;
+			}
+			case int_attrib::RegionX:{
+				int region_x, region_y;
+				arv_camera_get_region (camera, &region_x, &region_y, &width, &height);
+				arv_camera_set_region (camera, value, region_y, width, height);
+				arv_camera_get_region (camera, &region_x, &region_y, &width, &height);
+				if (region_x != value) throw runtime_error("The attribute region_x could not be set.");
+				
+				int sensor_width, sensor_height;
+				arv_camera_get_sensor_size(camera, &sensor_width, &sensor_height); 
+
+				if ((region_x + width)> sensor_width){
+				 throw runtime_error("The attribute region_x could not be set. The 'region_x' plus 'width' must be less or equal the width supported by the camera");
+				}
+				break;
+
+			}
+			case int_attrib::RegionY:{
+				int region_x, region_y;
+				arv_camera_get_region (camera, &region_x, &region_y, &width, &height);
+				arv_camera_set_region (camera, region_x, value, width, height);
+				arv_camera_get_region (camera, &region_x, &region_y, &width, &height);
+				
+				if (region_y != value) throw runtime_error("The attribute region_y could not be set.");
+
+				int sensor_width, sensor_height;
+				arv_camera_get_sensor_size(camera, &sensor_width, &sensor_height); 
+
+				if ((region_y + height) > sensor_height) throw runtime_error("The attribute region_y could not be set. The 'region_y' plus 'height' must be less or equal the width supported by the camera");
+				break;
+
+			}
+			case int_attrib::BinningX:{
+				int binning_x, binning_y;		
+				arv_camera_get_binning (camera, &binning_x, &binning_y);
+				arv_camera_set_binning (camera, value, binning_y);
+				arv_camera_get_binning (camera, &binning_x, &binning_y);
+				if (!(binning_x == 0 && value == 1)){				
+					if (binning_x != value) {
+						throw runtime_error("The attribute binning_x could not be set. Check in the camera's manual if it suports binning");	
+					}
+				}
+				break;
+			}
+
+			case int_attrib::BinningY:{
+				int binning_x, binning_y;		
+				arv_camera_get_binning (camera, &binning_x, &binning_y);
+				arv_camera_set_binning (camera, binning_x, value);
+				arv_camera_get_binning (camera, &binning_x, &binning_y);
+				if (!binning_y == 0 && value == 1){
+					if (binning_y != value){
+						throw runtime_error("The attribute binning_y could not be set. Check in the camera's manual if it suports binning");			
+					}	
+				}
+			}
+			default:
+				break;
+		}
+		return true;
+	}
+
        	bool CameraAravis::setAttrib(const double_attrib::CamAttrib attrib,const double value) {
 		switch(attrib) {
-                    case double_attrib::FrameRate:
-		            arv_camera_stop_acquisition(camera); //why?
+                    case double_attrib::FrameRate:{
+		            arv_camera_stop_acquisition(camera); 
                             arv_camera_set_frame_rate(camera, value);
-                            arv_camera_start_acquisition(camera);//why?
+                            double fps = arv_camera_get_frame_rate(camera);
+			    if (fps != value) throw runtime_error("The attribute 'gain' could not be set");
+			    arv_camera_start_acquisition(camera);
                             return true;
+		    }
                     default:
                             return false;
 		}
 	}
 
-        // implement missing attributes (look into camera_interface)
         int CameraAravis::getAttrib(const int_attrib::CamAttrib attrib) {
 		switch(attrib) {
 			case int_attrib::ExposureValue:
@@ -314,7 +389,6 @@ namespace camera
 		}
 	}
 
-        // add support BAYER (check which bayer pattern is supported by the camera and set it)
 	bool CameraAravis::setFrameSettings(  const base::samples::frame::frame_size_t size, 
                                           const base::samples::frame::frame_mode_t mode,
                                           const uint8_t color_depth,
@@ -322,8 +396,8 @@ namespace camera
 		ArvPixelFormat targetPixelFormat;
 		switch(mode) {
 			case base::samples::frame::MODE_BAYER:
-				//TODO: ask camera which bayer pattern is supported and set it
-				break;
+			    targetPixelFormat = getBayerFormat();
+			    break;
 			case base::samples::frame::MODE_GRAYSCALE:
 			    targetPixelFormat = ARV_PIXEL_FORMAT_MONO_8;
 			    break;
@@ -350,6 +424,18 @@ namespace camera
 				break;
 
 		}
+
+		int sensor_width, sensor_height;
+		arv_camera_get_sensor_size(camera, &sensor_width, &sensor_height); 
+		if ((size.width > sensor_width) || (size.height > sensor_height)){
+		throw runtime_error("This size is not supported by the camera. Please check the maximum resolution of the camera");		
+		}
+
+		if ((size.width%8 !=0) || (size.height%8 !=0)){
+		throw runtime_error("The size of the frame must be divisible by 8");
+		}
+
+
 		arv_camera_set_region (camera, 0, 0, size.width, size.height);
 		arv_camera_set_pixel_format(camera, targetPixelFormat);
 		return true;
@@ -361,43 +447,72 @@ namespace camera
 		return true;
 	}
 
-        // implement missing attributes (look into camera_interface)
-	bool CameraAravis::isAttribAvail(const int_attrib::CamAttrib attrib) {
-		return (attrib == int_attrib::ExposureValue || 
-			attrib == int_attrib::GainValue || 
-			attrib == int_attrib::RegionX || 
-			attrib == int_attrib::RegionY
-			); 
+	bool CameraAravis::setErrorCallbackFcn(void (*pcallback_function)(const void* p),void *p) {
+		errorCallbackFcn = pcallback_function;
+		errorCallbackData = p;
+		return true;
 	}
 
-        // implement missing attributes (look into camera_interface)
+	bool CameraAravis::isAttribAvail(const int_attrib::CamAttrib attrib) {
+		switch (attrib) {
+			case int_attrib::ExposureValue:
+				return true;
+			case int_attrib::GainValue:
+				return true;
+			case int_attrib::RegionX: 
+				return true;
+			case int_attrib::RegionY:
+				return true;
+			case int_attrib::BinningX:
+				return true;		
+			case int_attrib::BinningY:
+				return true;
+			default: 
+				return false;			
+		}		
+	}
+
 	bool CameraAravis::isAttribAvail(const double_attrib::CamAttrib attrib) {
                 return  attrib == double_attrib::FrameRate;
 	}
 
-        // implement missing attributes (look into camera_interface)
 	bool CameraAravis::isAttribAvail(const str_attrib::CamAttrib attrib) {
 		return false;
 	}
 
-        // implement missing attributes (look into camera_interface)
 	bool CameraAravis::isAttribAvail(const enum_attrib::CamAttrib attrib) {
-		return (
-                            attrib == enum_attrib::ExposureModeToManual ||
-			    attrib == enum_attrib::ExposureModeToAuto ||
-			    attrib == enum_attrib::WhitebalModeToAuto ||
-			    attrib == enum_attrib::WhitebalModeToManual
-                            );
+		switch(attrib){
+			case enum_attrib::ExposureModeToManual:
+				return true;			
+			case enum_attrib::ExposureModeToAutoOnce:
+				return true;
+			case enum_attrib::ExposureModeToAuto:
+				return true;
+			case enum_attrib::WhitebalModeToAuto:
+				return true;			
+			case enum_attrib::WhitebalModeToManual:
+				return true;
+			case enum_attrib::GainModeToManual:
+				return true;
+			case enum_attrib::GainModeToAutoOnce:
+				return true;
+			case enum_attrib::GainModeToAuto:
+				return true;
+			default:
+				return false;
+		}
 	}
 
-        // implement missing attributes (look into camera_interface)
 	bool CameraAravis::setAttrib(const enum_attrib::CamAttrib attrib) {
 		switch(attrib) {
 			case enum_attrib::ExposureModeToManual:
-				autoExposure = false;
+				arv_camera_set_exposure_time_auto(camera, ARV_AUTO_OFF);
+				return true;
+			case enum_attrib::ExposureModeToAutoOnce:
+				arv_camera_set_exposure_time_auto(camera, ARV_AUTO_ONCE);
 				return true;
 			case enum_attrib::ExposureModeToAuto:
-				autoExposure = true;
+				arv_camera_set_exposure_time_auto(camera, ARV_AUTO_CONTINUOUS);
 				return true;
 			case enum_attrib::WhitebalModeToManual:
 				autoWhitebalance = false;
@@ -411,22 +526,52 @@ namespace camera
 				arv_device_set_string_feature_value(arv_camera_get_device(camera), "BalanceRatioSelector", "Blue");
 				camera_b_balance = arv_device_get_integer_feature_value(arv_camera_get_device(camera), "BalanceRatioRaw");
 				return true;
+			case enum_attrib::GainModeToManual:
+				arv_camera_set_gain_auto (camera, ARV_AUTO_OFF);
+				return true;
+			case enum_attrib::GainModeToAutoOnce:
+				arv_camera_set_gain_auto (camera, ARV_AUTO_ONCE);
+				return true;
+			case enum_attrib::GainModeToAuto:
+				arv_camera_set_gain_auto (camera, ARV_AUTO_CONTINUOUS);
+				return true;
 			default:
 				return false;
 		}
 	}
 
-        // implement missing attributes (look into camera_interface)
 	bool CameraAravis::isAttribSet(const enum_attrib::CamAttrib attrib) {
 		switch(attrib) {
 			case enum_attrib::ExposureModeToManual:
-				return !autoExposure;
-			case enum_attrib::ExposureModeToAuto:
-				return autoExposure;
+				if (arv_camera_get_exposure_time_auto(camera) == ARV_AUTO_OFF) return true;
+				else return false;
+			case enum_attrib::ExposureModeToAutoOnce:{
+				if (arv_camera_get_exposure_time_auto(camera) == ARV_AUTO_ONCE) return true;
+				else return false;
+			}
+			case enum_attrib::ExposureModeToAuto:{
+				if (arv_camera_get_exposure_time_auto(camera) == ARV_AUTO_CONTINUOUS) return true;
+				else return false;
+			}
 			case enum_attrib::WhitebalModeToManual:
 				return !autoWhitebalance;
 			case enum_attrib::WhitebalModeToAuto:
 				return autoWhitebalance;
+			case enum_attrib::GainModeToManual:{
+				ArvAuto status = arv_camera_get_gain_auto(camera);				
+				if (status == ARV_AUTO_OFF) return true;
+				else return false;
+			}
+			case enum_attrib::GainModeToAutoOnce:{
+				ArvAuto status = arv_camera_get_gain_auto(camera);
+				if (status == ARV_AUTO_ONCE) return true;
+				else return false;
+			}
+			case enum_attrib::GainModeToAuto:{
+				ArvAuto status = arv_camera_get_gain_auto(camera);
+				if (status == ARV_AUTO_CONTINUOUS) return true;
+				else return false;
+			}
 			default:
 				return false;
 		}
