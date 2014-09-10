@@ -288,11 +288,9 @@ namespace camera
        	bool CameraAravis::setAttrib(const int_attrib::CamAttrib attrib,const int value) {
 		switch(attrib) {
 			case int_attrib::ExposureValue:{
-				cout << "value: " << value << endl;
 				arv_camera_set_exposure_time_auto(camera, ARV_AUTO_OFF);				
 				arv_camera_set_exposure_time(camera, value);
 				double exposure = arv_camera_get_exposure_time(camera);
-				cout << "exposure: " << exposure << endl;
 				if (exposure != value) throw runtime_error("The attribute 'exposure' could not be set");		
 				break;
 			}
