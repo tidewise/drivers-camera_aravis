@@ -96,7 +96,7 @@ namespace camera
 		printBufferStatus();
 		ArvBuffer* arv_buffer = arv_stream_pop_buffer(stream);
 		if(arv_buffer != NULL) {
-			if(arv_buffer->status == ARV_BUFFER_STATUS_SUCCESS) {
+			if(ARV_TYPE_BUFFER == ARV_BUFFER_STATUS_SUCCESS) {
 				pthread_mutex_lock(&buffer_counter_lock);
 				buffer_counter--;
 				pthread_mutex_unlock(&buffer_counter_lock);
@@ -113,9 +113,11 @@ namespace camera
 				current_frame = (current_frame + 1) % buffer_len;
 
 				//AutoWhitebalance if desired
-				if(autoWhitebalance && arv_buffer->pixel_format == ARV_PIXEL_FORMAT_BAYER_GB_8) {
+				if(autoWhitebalance && arv_buffer_get_image_pixel_format(arv_buffer) == ARV_PIXEL_FORMAT_BAYER_GB_8) {
 					base::samples::frame::Frame convertedFrame(height, width, 8, base::samples::frame::MODE_RGB);
-					cv::Mat image(height, width, CV_8UC1, arv_buffer->data);
+					size_t size;
+                                        const void* data = arv_buffer_get_data(arv_buffer,&size);
+                                        const cv::Mat image(height, width, CV_8UC1, (void*)data);
 					cv::Mat converted = frame_helper::FrameHelper::convertToCvMat(convertedFrame);
 					cv::cvtColor(image, converted, CV_BayerGB2RGB);
 					
@@ -152,7 +154,8 @@ namespace camera
 				//Only use every third frame otherwise the controller is not stable because of the
 				//async behaviour of arv_camera_set_exposure_time
 				if(autoExposure && (exposureFrameCounter % 3 == 0)) {
-					cv::Mat image(height, width, CV_8UC1, arv_buffer->data);
+                                        size_t size;
+					const cv::Mat image(height, width, CV_8UC1, (void*)arv_buffer_get_data(arv_buffer,&size));
 					int brightness = brightnessIndicator.getBrightness(image);
 					currentExposure = exposureController->update(brightness, 100);
 					arv_camera_set_exposure_time(camera, currentExposure);
@@ -161,7 +164,7 @@ namespace camera
                                 frame.time = base::Time::now();
 				return true;
 			} else {
-				cout << "Wrong status of buffer: " << getBufferStatusString(arv_buffer->status) << endl;
+				cout << "Wrong status of buffer: " << getBufferStatusString(arv_buffer_get_status(arv_buffer)) << endl;
 				buffer_counter--;
 				arv_stream_push_buffer(stream, arv_buffer_new(payload, camera_buffer[current_frame].getImagePtr()));
 				current_frame = (current_frame + 1) % buffer_len;
