@@ -1,269 +1,226 @@
 #include "CameraAravis.hpp"
 
-#include <camera_interface/AutoWhiteBalance.h>
 #include <frame_helper/FrameHelper.h>
-
 #include <exception>
 #include <semaphore.h>
-
-
-
 
 using namespace std;
 
 namespace camera
 {
-	void aravisCameraCallback(ArvStream *stream, CameraAravis *driver) {
-		pthread_mutex_lock(&(driver->buffer_counter_lock));
-		driver->buffer_counter++;
-		pthread_mutex_unlock(&(driver->buffer_counter_lock));
-		if(driver->callbackFcn != 0) {
-			driver->callbackFcn(driver->callbackData);
-		}
-	}
+    void aravisCameraCallback(ArvStream *stream, CameraAravis *driver) 
+    {
+        pthread_mutex_lock(&(driver->buffer_counter_lock));
+        driver->buffer_counter++;
+        pthread_mutex_unlock(&(driver->buffer_counter_lock));
+        if(driver->callbackFcn != 0) 
+            driver->callbackFcn(driver->callbackData);
+    }
 	
-	void controlLostCallback (CameraAravis *driver) {
-		
-		std::cout << "ERROR: The connection was lost. Try to plug the camera and re-run the task." << std::endl;
-		if(driver->errorCallbackFcn != 0) {
-			driver->errorCallbackFcn(driver->callbackData);
-		}
-	}
+    void controlLostCallback (CameraAravis *driver) 
+    {
+        std::cout << "ERROR: The connection was lost. Try to plug the camera and re-run the task." << std::endl;
+        if(driver->errorCallbackFcn != 0)
+            driver->errorCallbackFcn(driver->callbackData);
+    }
 
-	CameraAravis::CameraAravis() {
+    CameraAravis::CameraAravis():
+        camera(NULL),
+        stream(NULL),
+        current_frame(0),
+        buffer_counter(0),
+        callbackFcn(NULL),
+        errorCallbackFcn(NULL)
+    {
+        path = std::string(getenv("AUTOPROJ_CURRENT_ROOT")) + "/drivers/orogen/camera_aravis/scripts";
+        fLS::FLAGS_log_dir = path.c_str();
+        google::InitGoogleLogging("camera_aravis");
+        pthread_mutex_init(&buffer_counter_lock, NULL);
+    }
 
-		path = strcat(getenv("AUTOPROJ_CURRENT_ROOT"),"/drivers/orogen/camera_aravis/scripts");
-		fLS::FLAGS_log_dir = path;
-		google::InitGoogleLogging("camera_aravis");
+    CameraAravis::~CameraAravis()
+    {
+        if(stream)
+            g_object_unref(stream);
+        if(camera)
+            g_object_unref(camera);
+    }
 
-		g_type_init();
+    void CameraAravis::openCamera(std::string camera_name)
+    {
+        if(camera)
+            throw runtime_error("openCamera failed - camera is already openend");
+        camera = arv_camera_new(camera_name.c_str());
+        if(camera == 0)
+            throw runtime_error("openCamera failed - No Camera with name '" + camera_name + "' found!");
+        stream = arv_camera_create_stream (camera, NULL, NULL);
+        if(stream == 0)
+            throw runtime_error("openCamera failed - Cannot create stream");
 
-		camera = 0;
-		stream = 0;
-		current_frame = 0;
-		buffer_len = 0;
-		callbackFcn = 0;
-		buffer_counter = 0;
-		currentExposure = -1;
-		exposureFrameCounter = 0;
-		autoWhitebalance = false;
-		pthread_mutex_init(&buffer_counter_lock, NULL);
-	}
+        arv_stream_set_emit_signals (stream, TRUE);
 
-	CameraAravis::~CameraAravis() {
-	}
+    }
 
-	void CameraAravis::openCamera(std::string camera_name) {
+    void CameraAravis::startCapture()
+    {
+        if(!camera)
+            throw std::runtime_error("CameraAravis: camera is not opened!");
+        arv_camera_start_acquisition(camera);
 
-		camera = arv_camera_new(camera_name.c_str());
-		if(camera == 0) {
-			throw runtime_error("openCamera failed - No Camera with name '" + camera_name + "' found!");
-		}
-		stream = arv_camera_create_stream (camera, NULL, NULL);
-		//TODO: Emit Signals nur anschalten, wenn auch ein Callback gesetzt wird...
-		arv_stream_set_emit_signals (stream, TRUE);    
+        callback_handler = g_signal_connect (stream, "new-buffer", G_CALLBACK (aravisCameraCallback), this);
+        if(0 >= callback_handler)
+            throw std::runtime_error("CameraAravis: cannot connect callback!");
 
-		//
-		// Load the current settings of the camera
-		//
-		
-		//Get Size of each frame from camera
-		payload = arv_camera_get_payload (camera);
-		//Get Width and Height of Frames
-		arv_camera_get_region (camera, NULL, NULL, &width, &height);
-		
-		//Determine correct format of the frame
-		format = arv_camera_get_pixel_format(camera);
-		
-		currentExposure = arv_camera_get_exposure_time(camera);
-		exposureController.reset(new ExposureController(100, 70000, 5, currentExposure));
-	}
+        error_callback_handler = g_signal_connect(arv_camera_get_device(camera), "control-lost", G_CALLBACK (controlLostCallback), NULL);
+        if(0 >=error_callback_handler)
+            throw std::runtime_error("CameraAravis: cannot connect error callback!");
+    }
 
-	void CameraAravis::startCapture() {
-		arv_camera_start_acquisition(camera);
-		int retval = g_signal_connect (stream, "new-buffer", G_CALLBACK (aravisCameraCallback), this);
-		g_signal_connect (arv_camera_get_device (camera), "control-lost", G_CALLBACK (controlLostCallback), NULL);
-             
-	}
+    void CameraAravis::stopCapture()
+    {
+        if(!camera)
+            return;
+        g_signal_handler_disconnect (stream,callback_handler);
+        g_signal_handler_disconnect (arv_camera_get_device(camera),error_callback_handler);
+        arv_camera_stop_acquisition(camera);
+    }
 
-	void CameraAravis::stopCapture() {
-		arv_camera_stop_acquisition(camera);
-               // disconntect control-lost
-               // disconntect new-buffer
-	}
+    void CameraAravis::prepareBuffer(const size_t bufferLen)
+    {
+        // Load the current settings of the camera
+        //Get Size of each frame from camera
+        unsigned int payload = arv_camera_get_payload (camera);
 
-	void CameraAravis::prepareBuffer(const size_t bufferLen) {
+        //Get Width and Height of Frame
+        int width, height;
+        arv_camera_get_region (camera, NULL, NULL, &width, &height);
+        //Determine correct format of the frame
+        ArvPixelFormat format = arv_camera_get_pixel_format(camera);
 
-		camera_buffer.resize(bufferLen);
-		for (unsigned i = 0; i < bufferLen; ++i){
-			camera_buffer[i].init(width,height,8, convertArvToFrameMode(format),128,payload);
-			arv_stream_push_buffer (stream, arv_buffer_new (payload, camera_buffer[i].getImagePtr()));
-		}
-	}
+        camera_buffer.resize(bufferLen);
+        for (unsigned int i = 0; i < bufferLen; ++i)
+        {
+            camera_buffer[i].init(width,height,8,convertArvToFrameMode(format),-1,payload);
+            arv_stream_push_buffer(stream, arv_buffer_new(payload, camera_buffer[i].getImagePtr()));
+        }
+    }
 
-	void CameraAravis::printBufferStatus() {
-		gint input_length, output_length;
-		arv_stream_get_n_buffers(stream, &input_length, &output_length);
-	}
+    void CameraAravis::printBufferStatus()
+    {
+        gint input_length, output_length;
+        arv_stream_get_n_buffers(stream, &input_length, &output_length);
+    }
 	
-	bool CameraAravis::retrieveFrame(base::samples::frame::Frame &frame,const int timeout) {
-		printBufferStatus();
-		ArvBuffer* arv_buffer = arv_stream_pop_buffer(stream);
-		if(arv_buffer != NULL) {
-			if(arv_buffer->status == ARV_BUFFER_STATUS_SUCCESS) {
-				pthread_mutex_lock(&buffer_counter_lock);
-				buffer_counter--;
-				pthread_mutex_unlock(&buffer_counter_lock);
-				//Got valid frame
+    bool CameraAravis::retrieveFrame(base::samples::frame::Frame &frame,const int timeout)
+    {
+        ArvBuffer* arv_buffer = arv_stream_pop_buffer(stream);
+        if(arv_buffer == NULL)
+            return false; // no image
+        std::cout << getBufferStatusString(arv_buffer->status) << std::endl;
 
-				camera_buffer[current_frame].swap(frame);
-				frame.setStatus(base::samples::frame::STATUS_VALID);
-				if(camera_buffer[current_frame].getStatus() != base::samples::frame::STATUS_VALID) {
-					//When the frame is invalid, initialize it
-					camera_buffer[current_frame].init(width, height, 8, convertArvToFrameMode(format), 128, payload);
-				}
-				arv_stream_push_buffer(stream, arv_buffer_new(payload, camera_buffer[current_frame].getImagePtr()));
+        pthread_mutex_lock(&buffer_counter_lock);
+        if(buffer_counter > 0)
+            buffer_counter--;
+        pthread_mutex_unlock(&buffer_counter_lock);
 
-				current_frame = (current_frame + 1) % buffer_len;
+        bool bok = true;
+        if(arv_buffer->status != ARV_BUFFER_STATUS_SUCCESS)
+        {
+            frame.time = base::Time::now();
+            frame.setStatus(base::samples::frame::STATUS_INVALID);
+            arv_stream_push_buffer(stream,arv_buffer);
+            bok = false;
+        }
+        else
+        {
+            //Got valid frame
+            base::samples::frame::Frame &new_frame = camera_buffer[current_frame];
+            new_frame.swap(frame);
+            new_frame.init(frame.size.width,frame.size.height,8,frame.frame_mode,-1); // ensure right size
+            frame.setStatus(base::samples::frame::STATUS_VALID);
+            frame.time = base::Time::now();
+            //we have to create a new buffer because pointer has changed 
+            g_object_unref(arv_buffer);
+            arv_buffer = NULL;
+            arv_stream_push_buffer(stream, arv_buffer_new(new_frame.image.size(),new_frame.getImagePtr()));
+        }
+        current_frame = (current_frame+1)%camera_buffer.size();
+        return bok;
+    }
 
-				//AutoWhitebalance if desired
-				if(autoWhitebalance && arv_buffer->pixel_format == ARV_PIXEL_FORMAT_BAYER_GB_8) {
-					base::samples::frame::Frame convertedFrame(height, width, 8, base::samples::frame::MODE_RGB);
-					cv::Mat image(height, width, CV_8UC1, arv_buffer->data);
-					cv::Mat converted = frame_helper::FrameHelper::convertToCvMat(convertedFrame);
-					cv::cvtColor(image, converted, CV_BayerGB2RGB);
-					
-					AutoWhiteBalancer* awb = AutoWhiteBalance::createAutoWhiteBalancer(converted);
+    std::string CameraAravis::getBufferStatusString(ArvBufferStatus status) 
+    {
+        switch(status) {
+        case ARV_BUFFER_STATUS_SUCCESS:
+            return "ARV_BUFFER_STATUS_SUCCESS";
+        case ARV_BUFFER_STATUS_MISSING_PACKETS:
+            return "ARV_BUFFER_STATUS_MISSING_PACKETS";
+        case ARV_BUFFER_STATUS_CLEARED:
+            return "ARV_BUFFER_STATUS_CLEARED";
+        case ARV_BUFFER_STATUS_TIMEOUT:
+            return "ARV_BUFFER_STATUS_TIMEOUT";
+        case ARV_BUFFER_STATUS_WRONG_PACKET_ID:
+            return "ARV_BUFFER_STATUS_WRONG_PACKET_ID";
+        case ARV_BUFFER_STATUS_SIZE_MISMATCH:
+            return "ARV_BUFFER_STATUS_SIZE_MISMATCH";
+        case ARV_BUFFER_STATUS_FILLING:
+            return "ARV_BUFFER_STATUS_FILLING";
+        case ARV_BUFFER_STATUS_ABORTED:
+            return "ARV_BUFFER_STATUS_ABORTED";
+        default:
+            throw runtime_error("This value for ArvBufferStatus is unknown!");
 
-					if(awb->offsetRight[0] < 250) {
-						int err = 250 - awb->offsetRight[0];
-						camera_b_balance += err * 0.3;
-					}
-					if(awb->offsetRight[1] < 250) {
-						int err = 250 - awb->offsetRight[1];
-						camera_g_balance += err * 0.3;
-					}
-					if(awb->offsetRight[2] < 250) {
-						int err = 250 - awb->offsetRight[2];
-						camera_r_balance += err * 0.3;
-					}
+        }
+    }
 
-					double norm = sqrt((camera_b_balance * camera_b_balance) + (camera_r_balance + camera_r_balance) + (camera_g_balance * camera_g_balance));
-					camera_b_balance = (camera_b_balance / norm) * 255;
-					camera_r_balance = (camera_r_balance / norm) * 255;
-					camera_g_balance = (camera_g_balance / norm) * 255;
-					arv_device_set_string_feature_value(arv_camera_get_device(camera), "BalanceRatioSelector", "Red");
-					arv_device_set_integer_feature_value(arv_camera_get_device(camera), "BalanceRatioRaw", camera_r_balance);
-					arv_device_set_string_feature_value(arv_camera_get_device(camera), "BalanceRatioSelector", "Green");
-					arv_device_set_integer_feature_value(arv_camera_get_device(camera), "BalanceRatioRaw", camera_g_balance);
-					arv_device_set_string_feature_value(arv_camera_get_device(camera), "BalanceRatioSelector", "Blue");
-					arv_device_set_integer_feature_value(arv_camera_get_device(camera), "BalanceRatioRaw", camera_b_balance);
-
-				}
-				// Remove autoExposure 
-				
-
-				//Adjust exposure if desired
-				//Only use every third frame otherwise the controller is not stable because of the
-				//async behaviour of arv_camera_set_exposure_time
-				/*if(autoExposure && (exposureFrameCounter % 3 == 0)) {
-					cv::Mat image(height, width, CV_8UC1, arv_buffer->data);
-					int brightness = brightnessIndicator.getBrightness(image);
-					currentExposure = exposureController->update(brightness, 100);
-					arv_camera_set_exposure_time(camera, currentExposure);
-				}
-
-				++exposureFrameCounter;
-				frame.time = base::Time::now();
-				return true;
-				} 
-				else {
-					cout << "Wrong status of buffer: " << getBufferStatusString(arv_buffer->status) << endl;
-					buffer_counter--;
-					arv_stream_push_buffer(stream, arv_buffer_new(payload, camera_buffer[current_frame].getImagePtr()));
-					current_frame = (current_frame + 1) % buffer_len;
-					return false;
-				}*/
-		} 
-		else {
-			cout << "Got Null pointer for buffer" << endl;
-			return false;
-		}
-	}
-	}
-
-	std::string CameraAravis::getBufferStatusString(ArvBufferStatus status) {
-		
-		switch(status) {
-			case ARV_BUFFER_STATUS_SUCCESS:
-				return "ARV_BUFFER_STATUS_SUCCESS";
-			case ARV_BUFFER_STATUS_MISSING_PACKETS:
-				return "ARV_BUFFER_STATUS_MISSING_PACKETS";
-			case ARV_BUFFER_STATUS_CLEARED:
-				return "ARV_BUFFER_STATUS_CLEARED";
-			case ARV_BUFFER_STATUS_TIMEOUT:
-				return "ARV_BUFFER_STATUS_TIMEOUT";
-			case ARV_BUFFER_STATUS_WRONG_PACKET_ID:
-				return "ARV_BUFFER_STATUS_WRONG_PACKET_ID";
-			case ARV_BUFFER_STATUS_SIZE_MISMATCH:
-				return "ARV_BUFFER_STATUS_SIZE_MISMATCH";
-			case ARV_BUFFER_STATUS_FILLING:
-				return "ARV_BUFFER_STATUS_FILLING";
-			case ARV_BUFFER_STATUS_ABORTED:
-				return "ARV_BUFFER_STATUS_ABORTED";
-			default:
-				throw runtime_error("This value for ArvBufferStatus is unknown!");
-
-		}
-	}
-
-	base::samples::frame::frame_mode_t CameraAravis::convertArvToFrameMode(ArvPixelFormat format) {
-		switch(format) {
-			case ARV_PIXEL_FORMAT_MONO_8:
-				return base::samples::frame::MODE_GRAYSCALE;
-			case ARV_PIXEL_FORMAT_RGB_8_PACKED:
-			        return base::samples::frame::MODE_RGB;
-			case ARV_PIXEL_FORMAT_BGR_8_PACKED:
-				return base::samples::frame::MODE_BGR;
-			case ARV_PIXEL_FORMAT_BAYER_GR_8:
-				return base::samples::frame::MODE_BAYER_GRBG;
-			case ARV_PIXEL_FORMAT_BAYER_RG_8:
-				return base::samples::frame::MODE_BAYER_RGGB;
-			case ARV_PIXEL_FORMAT_BAYER_GB_8:
-				return base::samples::frame::MODE_BAYER_GBRG;
-			case ARV_PIXEL_FORMAT_BAYER_BG_8:
-				return base::samples::frame::MODE_BAYER_BGGR;
-			default:
-				throw runtime_error("Frame Format unknown!");
-		}
-	}
+    base::samples::frame::frame_mode_t CameraAravis::convertArvToFrameMode(ArvPixelFormat format) 
+    {
+        switch(format) {
+        case ARV_PIXEL_FORMAT_MONO_8:
+            return base::samples::frame::MODE_GRAYSCALE;
+        case ARV_PIXEL_FORMAT_RGB_8_PACKED:
+            return base::samples::frame::MODE_RGB;
+        case ARV_PIXEL_FORMAT_BGR_8_PACKED:
+            return base::samples::frame::MODE_BGR;
+        case ARV_PIXEL_FORMAT_BAYER_GR_8:
+            return base::samples::frame::MODE_BAYER_GRBG;
+        case ARV_PIXEL_FORMAT_BAYER_RG_8:
+            return base::samples::frame::MODE_BAYER_RGGB;
+        case ARV_PIXEL_FORMAT_BAYER_GB_8:
+            return base::samples::frame::MODE_BAYER_GBRG;
+        case ARV_PIXEL_FORMAT_BAYER_BG_8:
+            return base::samples::frame::MODE_BAYER_BGGR;
+        default:
+            throw runtime_error("Frame Format unknown!");
+        }
+    }
 
 
-        bool CameraAravis::grab(const GrabMode mode, const int buffer_len) {
-		if(camera == 0) {
-			throw runtime_error("Camera not configured, please open one with openCamera() first!");
-		}
+    bool CameraAravis::grab(const GrabMode mode, const int buffer_len)
+    {
+        if(camera == 0)
+            throw runtime_error("Camera not configured, please open one with openCamera() first!");
 
-		switch(mode) {
-			case Continuously:
-				this->buffer_len = buffer_len;
-				prepareBuffer(buffer_len);
-			        arv_camera_set_acquisition_mode (camera, ARV_ACQUISITION_MODE_CONTINUOUS);
-				startCapture();
-				break;
-			/*case SingleFrame:
-				arv_camera_set_acquisition_mode (camera, ARV_ACQUISITION_MODE_SINGLE_FRAME);
-				prepareBuffer(1);				
-				startCapture();
-				break;*/
-			case Stop:
-				stopCapture();
-				break;
-			default:
-				throw runtime_error("Capture mode not supported!");
-		}
-		return true;
-	}
+        switch(mode)
+        {
+        case Continuously:
+            prepareBuffer(buffer_len);
+            arv_camera_set_acquisition_mode (camera, ARV_ACQUISITION_MODE_CONTINUOUS);
+            startCapture();
+            break;
+            /*case SingleFrame:
+              arv_camera_set_acquisition_mode (camera, ARV_ACQUISITION_MODE_SINGLE_FRAME);
+              prepareBuffer(1);				
+              startCapture();
+              break;*/
+        case Stop:
+            stopCapture();
+            break;
+        default:
+            throw runtime_error("Capture mode not supported!");
+        }
+        return true;
+    }
 
 	ArvPixelFormat CameraAravis::getBayerFormat (){
 		guint n;
@@ -301,7 +258,7 @@ namespace camera
 				break;
 			}
 			case int_attrib::RegionX:{
-				int region_x, region_y;
+				int region_x, region_y,width,height;
 				arv_camera_get_region (camera, &region_x, &region_y, &width, &height);
 				arv_camera_set_region (camera, value, region_y, width, height);
 				arv_camera_get_region (camera, &region_x, &region_y, &width, &height);
@@ -317,7 +274,7 @@ namespace camera
 
 			}
 			case int_attrib::RegionY:{
-				int region_x, region_y;
+				int region_x, region_y,width,height;
 				arv_camera_get_region (camera, &region_x, &region_y, &width, &height);
 				arv_camera_set_region (camera, region_x, value, width, height);
 				arv_camera_get_region (camera, &region_x, &region_y, &width, &height);
@@ -327,7 +284,8 @@ namespace camera
 				int sensor_width, sensor_height;
 				arv_camera_get_sensor_size(camera, &sensor_width, &sensor_height); 
 
-				if ((region_y + height) > sensor_height) throw runtime_error("The attribute region_y could not be set. The 'region_y' plus 'height' must be less or equal the width supported by the camera");
+				if ((region_y + height) > sensor_height) 
+                                    throw runtime_error("The attribute region_y could not be set. The 'region_y' plus 'height' must be less or equal the width supported by the camera");
 				break;
 
 			}
@@ -336,11 +294,8 @@ namespace camera
 				arv_camera_get_binning (camera, &binning_x, &binning_y);
 				arv_camera_set_binning (camera, value, binning_y);
 				arv_camera_get_binning (camera, &binning_x, &binning_y);
-				if (!(binning_x == 0 && value == 1)){				
-					if (binning_x != value) {
-						throw runtime_error("The attribute binning_x could not be set. Check in the camera's manual if it suports binning");	
-					}
-				}
+                                if (!(binning_x == 0 && value == 1 && binning_x != value) 
+                                        throw runtime_error("Camera does not support binning.");			
 				break;
 			}
 
@@ -349,11 +304,8 @@ namespace camera
 				arv_camera_get_binning (camera, &binning_x, &binning_y);
 				arv_camera_set_binning (camera, binning_x, value);
 				arv_camera_get_binning (camera, &binning_x, &binning_y);
-				if (!binning_y == 0 && value == 1){
-					if (binning_y != value){
-						throw runtime_error("The attribute binning_y could not be set. Check in the camera's manual if it suports binning");			
-					}	
-				}
+                                if (!binning_y == 0 && value == 1 && binning_y != value)
+                                    throw runtime_error("Camera does not support binning.");			
 			}
 			default:
 				break;
@@ -430,7 +382,7 @@ namespace camera
 		}
 
 		if ((size.width%8 !=0) || (size.height%8 !=0)){
-		throw runtime_error("The size of the frame must be divisible by 8");
+		throw runtime_error("The size of the frame must be dividable by 8");
 		}
 
 
@@ -513,16 +465,8 @@ namespace camera
 				arv_camera_set_exposure_time_auto(camera, ARV_AUTO_CONTINUOUS);
 				return true;
 			case enum_attrib::WhitebalModeToManual:
-				autoWhitebalance = false;
 				return true;
 			case enum_attrib::WhitebalModeToAuto:
-				autoWhitebalance = true;
-				arv_device_set_string_feature_value(arv_camera_get_device(camera), "BalanceRatioSelector", "Red");
-				camera_r_balance = arv_device_get_integer_feature_value(arv_camera_get_device(camera), "BalanceRatioRaw");
-				arv_device_set_string_feature_value(arv_camera_get_device(camera), "BalanceRatioSelector", "Green");
-				camera_g_balance = arv_device_get_integer_feature_value(arv_camera_get_device(camera), "BalanceRatioRaw");
-				arv_device_set_string_feature_value(arv_camera_get_device(camera), "BalanceRatioSelector", "Blue");
-				camera_b_balance = arv_device_get_integer_feature_value(arv_camera_get_device(camera), "BalanceRatioRaw");
 				return true;
 			case enum_attrib::GainModeToManual:
 				arv_camera_set_gain_auto (camera, ARV_AUTO_OFF);
@@ -552,9 +496,9 @@ namespace camera
 				else return false;
 			}
 			case enum_attrib::WhitebalModeToManual:
-				return !autoWhitebalance;
+                                break;
 			case enum_attrib::WhitebalModeToAuto:
-				return autoWhitebalance;
+                                break;
 			case enum_attrib::GainModeToManual:{
 				ArvAuto status = arv_camera_get_gain_auto(camera);				
 				if (status == ARV_AUTO_OFF) return true;
@@ -573,6 +517,7 @@ namespace camera
 			default:
 				return false;
 		}
+                return false;
 	}
 
         bool CameraAravis::close() {
@@ -583,17 +528,10 @@ namespace camera
 		return "Here could be your super camera diagnose string...";
 	}
 
-	bool CameraAravis::isFrameAvailable() {
-		//HACK: Eigentlich sollte der Task mit Callback benutzt werden, dann ist diese Methode eigentlich gar nicht notwendig, aber der camera_base Task erwartet
-		//trotzdem das hier sinnvolle Werte zurückgegeben werden
-		return buffer_counter > 0;
-		
-		/*
-		int value = 0;
-		if(-1 == sem_getvalue(&buffer_lock, &value)) {
-			perror("sem_getvalue");
-		}
-		cout << "IsFrameAvailable: " << value << endl;
-		return value > 0;*/
-	}
+        bool CameraAravis::isFrameAvailable() 
+        {
+            //HACK: Eigentlich sollte der Task mit Callback benutzt werden, dann ist diese Methode eigentlich gar nicht notwendig, aber der camera_base Task erwartet
+            //trotzdem das hier sinnvolle Werte zurückgegeben werden
+            return buffer_counter > 0;
+        }
 }

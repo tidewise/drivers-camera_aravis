@@ -47,36 +47,32 @@ namespace camera
 			const bool resize_frames);
 
 		private:
-			char *path;
-			int camera_b_balance, camera_r_balance, camera_g_balance;
 			std::string getBufferStatusString(ArvBufferStatus status);
 			void printBufferStatus();
 			void startCapture();
 			void stopCapture();
 			void prepareBuffer(const size_t bufferLen);
-			ArvCamera *camera; 
-			ArvStream *stream;
-			ArvPixelFormat format;
-			std::vector<base::samples::frame::Frame> camera_buffer; 
-			int current_frame;
-			int buffer_len;
-			int width, height;
-			int exposureFrameCounter;
-			bool autoWhitebalance;
-			int currentExposure;
-			unsigned int payload;
-			SimpleBrightnessIndicator brightnessIndicator;
-			boost::shared_ptr<ExposureController> exposureController;
-			pthread_mutex_t buffer_counter_lock;
-			int buffer_counter;
-			void (*callbackFcn)(const void* p);
-			void *callbackData;
-			void (*errorCallbackFcn)(const void* p);
-			void *errorCallbackData;
 			base::samples::frame::frame_mode_t convertArvToFrameMode(ArvPixelFormat format);
 
 			friend void aravisCameraCallback(ArvStream *stream, CameraAravis *driver);
 			friend void controlLostCallback (CameraAravis *driver);
+
+                private:
+                        std::string path;
+			ArvCamera *camera;
+			ArvStream *stream;
+			int current_frame;
+			int buffer_counter;
+			void (*callbackFcn)(const void* p);
+			void (*errorCallbackFcn)(const void* p);
+			void *callbackData;
+			void *errorCallbackData;
+			pthread_mutex_t buffer_counter_lock;
+
+			std::vector<base::samples::frame::Frame> camera_buffer;
+
+                        unsigned long callback_handler;
+                        unsigned long error_callback_handler;
 	};
 
 } 
