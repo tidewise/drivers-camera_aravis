@@ -44,18 +44,6 @@ FILE* openLogFile() {
 	return fdesc;
 }
 
-void saveFrame(FILE* fhandle, ArvBuffer* frame) {
-	int ret = fwrite(&(frame->width), sizeof(frame->width), 1, fhandle);
-	int ret2 = fwrite(&(frame->height), sizeof(frame->height), 1, fhandle);
-	int ret3 = fwrite(&(frame->frame_id), sizeof(frame->frame_id), 1, fhandle);
-	int ret4 = fwrite(&(frame->timestamp_ns), sizeof(frame->timestamp_ns), 1, fhandle);
-	int ret5 = fwrite(frame->data, frame->size, 1, fhandle);
-
-	if(!(ret && ret2 && ret3 && ret4 && ret5)) {
-		throw runtime_error("Error on write!");
-	}
-}
-
 void atExit(int signum) {
 	shouldExit = true;
 }
@@ -125,10 +113,12 @@ int main(int argc, const char *argv[])
 	while(!shouldExit) {
 		arv_buffer = arv_stream_pop_buffer(stream);
 		if(arv_buffer != NULL) {
-			if(arv_buffer->status == ARV_BUFFER_STATUS_SUCCESS) {
-				int width = arv_buffer->width, height = arv_buffer->height;
-
-				Mat image(height, width, CV_8UC1, arv_buffer->data);
+			if(arv_buffer_get_status(arv_buffer) == ARV_BUFFER_STATUS_SUCCESS) {
+				int width = arv_buffer_get_image_width(arv_buffer);
+                                int height = arv_buffer_get_image_height(arv_buffer);
+                                size_t size;
+                                const void *data = arv_buffer_get_data(arv_buffer,&size);
+				const Mat image(height, width, CV_8UC1, (void*)data);
 				Mat converted;
 
 				cvtColor(image, converted, CV_BayerGB2RGB);
@@ -136,7 +126,6 @@ int main(int argc, const char *argv[])
 				waitKey(1);
 
 				int brightness = sb.getBrightness(image);
-				cout << "Got image "  << arv_buffer->frame_id << " Brightness: " << brightness << endl;
 				if(threshold == 0 || brightness > 100) {
 					cout << "updating" << endl;
 					exposure = pid.update(brightness, 100);
@@ -149,10 +138,8 @@ int main(int argc, const char *argv[])
 				std::cout << "Exposure: " << exposure << std::endl;
 				arv_camera_set_exposure_time(camera, exposure);
 
-				//Check frame format
-				//saveFrame(logfile, arv_buffer); 
 			} else {
-				cout << "Status bad..." << arv_buffer->status << endl;
+				cout << "Status bad..." << arv_buffer_get_status(arv_buffer) << endl;
 			}
 			arv_stream_push_buffer(stream, arv_buffer);
 		} else {

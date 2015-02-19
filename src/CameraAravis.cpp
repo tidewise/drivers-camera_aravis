@@ -116,7 +116,6 @@ namespace camera
         ArvBuffer* arv_buffer = arv_stream_pop_buffer(stream);
         if(arv_buffer == NULL)
             return false; // no image
-        std::cout << getBufferStatusString(arv_buffer_get_status(arv_buffer)) << std::endl;
 
         pthread_mutex_lock(&buffer_counter_lock);
         if(buffer_counter > 0)
