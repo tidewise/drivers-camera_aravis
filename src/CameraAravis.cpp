@@ -116,7 +116,7 @@ namespace camera
         ArvBuffer* arv_buffer = arv_stream_pop_buffer(stream);
         if(arv_buffer == NULL)
             return false; // no image
-        std::cout << getBufferStatusString(arv_buffer->status) << std::endl;
+        std::cout << getBufferStatusString(arv_buffer_get_status(arv_buffer)) << std::endl;
 
         pthread_mutex_lock(&buffer_counter_lock);
         if(buffer_counter > 0)
@@ -124,7 +124,7 @@ namespace camera
         pthread_mutex_unlock(&buffer_counter_lock);
 
         bool bok = true;
-        if(arv_buffer->status != ARV_BUFFER_STATUS_SUCCESS)
+        if(arv_buffer_get_status(arv_buffer) != ARV_BUFFER_STATUS_SUCCESS)
         {
             frame.time = base::Time::now();
             frame.setStatus(base::samples::frame::STATUS_INVALID);
@@ -294,7 +294,7 @@ namespace camera
 				arv_camera_get_binning (camera, &binning_x, &binning_y);
 				arv_camera_set_binning (camera, value, binning_y);
 				arv_camera_get_binning (camera, &binning_x, &binning_y);
-                                if (!(binning_x == 0 && value == 1 && binning_x != value) 
+                                if (!(binning_x == 0 && value == 1 && binning_x != value)) 
                                         throw runtime_error("Camera does not support binning.");			
 				break;
 			}
