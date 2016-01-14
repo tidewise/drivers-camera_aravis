@@ -318,7 +318,7 @@ namespace camera
 		            arv_camera_stop_acquisition(camera); 
                             arv_camera_set_frame_rate(camera, value);
                             double fps = arv_camera_get_frame_rate(camera);
-			    if (fps != value) throw runtime_error("The attribute 'FrameRate' could not be set");
+			    if (fabs(fps - value) > 0.01) throw runtime_error("The attribute 'FrameRate' could not be set");
 			    arv_camera_start_acquisition(camera);
                             return true;
 		    }
