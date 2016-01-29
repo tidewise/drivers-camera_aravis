@@ -126,6 +126,7 @@ namespace camera
         if(arv_buffer_get_status(arv_buffer) != ARV_BUFFER_STATUS_SUCCESS)
         {
             frame.time = base::Time::now();
+            frame.received_time = frame.time;
             frame.setStatus(base::samples::frame::STATUS_INVALID);
             arv_stream_push_buffer(stream,arv_buffer);
             bok = false;
@@ -137,7 +138,8 @@ namespace camera
             new_frame.swap(frame);
             new_frame.init(frame.size.width,frame.size.height,8,frame.frame_mode,-1); // ensure right size
             frame.setStatus(base::samples::frame::STATUS_VALID);
-            frame.time = base::Time::now();
+            frame.time = base::Time::fromMicroseconds(arv_buffer_get_timestamp(arv_buffer)*0.001);
+            frame.received_time = base::Time::now();
             //we have to create a new buffer because pointer has changed 
             g_object_unref(arv_buffer);
             arv_buffer = NULL;
