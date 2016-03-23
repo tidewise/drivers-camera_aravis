@@ -295,8 +295,16 @@ namespace camera
 				arv_camera_get_binning (camera, &binning_x, &binning_y);
 				arv_camera_set_binning (camera, value, binning_y);
 				arv_camera_get_binning (camera, &binning_x, &binning_y);
-                                if (!(binning_x == 0 && value == 1 && binning_x != value)) 
-                                        throw runtime_error("Camera does not support binning.");			
+
+				// check the return value of the binning.
+				// Everything is ok when it matches however,
+				// when the set value is requested for 1, the
+				// result may also be 0.  This last condition
+				// is an assumption based on what the previous
+				// version of what this code seemed to want to
+				// do.
+                                if (binning_x != 0 && value != 1 && binning_x != value)
+                                        throw runtime_error("Camera does not support binning.");
 				break;
 			}
 
@@ -305,8 +313,10 @@ namespace camera
 				arv_camera_get_binning (camera, &binning_x, &binning_y);
 				arv_camera_set_binning (camera, binning_x, value);
 				arv_camera_get_binning (camera, &binning_x, &binning_y);
-                                if (!binning_y == 0 && value == 1 && binning_y != value)
-                                    throw runtime_error("Camera does not support binning.");			
+
+                                // see check of binning_x for explanations
+                                if (binning_y != 0 && value != 1 && binning_y != value)
+                                    throw runtime_error("Camera does not support binning.");
 			}
 			default:
 				break;
