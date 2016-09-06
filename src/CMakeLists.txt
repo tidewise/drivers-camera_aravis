@@ -1,7 +1,7 @@
 rock_library(camera_aravis
 	SOURCES CameraAravis.cpp
 	HEADERS CameraAravis.hpp
-	DEPS_PKGCONFIG camera_interface aravis-0.4 frame_helper
+	DEPS_PKGCONFIG camera_interface aravis-0.6 frame_helper
 	)
 
 target_link_libraries(camera_aravis pthread glog)
