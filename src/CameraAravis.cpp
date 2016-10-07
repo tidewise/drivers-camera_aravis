@@ -58,7 +58,23 @@ namespace camera
             throw runtime_error("openCamera failed - Cannot create stream");
 
         arv_stream_set_emit_signals (stream, TRUE);
+    }
 
+    void CameraAravis::resetCamera(const std::string& camera_name)
+    {
+        unsigned attempts = 0;
+        ArvCamera *tmp_camera;
+        while(tmp_camera == 0 && attempts < 10)
+        {
+            tmp_camera = arv_camera_new(camera_name.c_str());
+            attempts++;
+        }
+        if(tmp_camera == 0)
+            throw runtime_error("resetCamera failed - No Camera with name '" + camera_name + "' found!");
+
+        arv_device_execute_command(arv_camera_get_device(tmp_camera), "DeviceReset");
+
+        g_object_unref(tmp_camera);
     }
 
     void CameraAravis::startCapture()
