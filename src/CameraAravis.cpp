@@ -71,7 +71,7 @@ namespace camera
     void CameraAravis::resetCamera(const std::string& camera_name)
     {
         unsigned attempts = 0;
-        ArvCamera *tmp_camera;
+        ArvCamera *tmp_camera = NULL;
         while(tmp_camera == 0 && attempts < 10)
         {
             tmp_camera = arv_camera_new(camera_name.c_str());
