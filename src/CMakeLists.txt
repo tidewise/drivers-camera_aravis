@@ -4,7 +4,7 @@ rock_library(camera_aravis
 	DEPS_PKGCONFIG camera_interface aravis-0.6 frame_helper
 	)
 
-target_link_libraries(camera_aravis pthread glog)
+target_link_libraries(camera_aravis pthread)
 rock_executable(camera_aravis_test CameraAravisTest.cpp
 	DEPS camera_aravis
 	DEPS_PKGCONFIG opencv camera_interface)

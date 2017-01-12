@@ -32,9 +32,6 @@ namespace camera
         callbackFcn(NULL),
         errorCallbackFcn(NULL)
     {
-        path = std::string(getenv("AUTOPROJ_CURRENT_ROOT")) + "/drivers/orogen/camera_aravis/scripts";
-        fLS::FLAGS_log_dir = path.c_str();
-        google::InitGoogleLogging("camera_aravis");
         pthread_mutex_init(&buffer_counter_lock, NULL);
     }
 
