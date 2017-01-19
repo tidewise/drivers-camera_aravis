@@ -10,5 +10,4 @@
   <depend package="drivers/aravis" />
   <depend package="drivers/camera_interface" />
   <depend package="image_processing/frame_helper" />
-  <depend package="glog" />
 </package>
