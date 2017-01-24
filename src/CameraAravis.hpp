@@ -5,7 +5,6 @@
 #include <string>
 #include <camera_interface/CamInterface.h>
 #include <arv.h>
-#include <glog/logging.h>
 #include <stdlib.h>
 
 #include <camera_interface/BrightnessIndicator.h>
