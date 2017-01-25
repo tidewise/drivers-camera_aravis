@@ -315,6 +315,9 @@ namespace camera
                                 if (binning_y != 0 && value != 1 && binning_y != value)
                                     throw runtime_error("Camera does not support binning.");
 			}
+            case int_attrib::TargetGrayValue:{
+                arv_device_set_integer_feature_value(arv_camera_get_device(camera), "AutoTargetValue", value);
+            }
 			default:
 				break;
 		}
@@ -424,6 +427,8 @@ namespace camera
 			case int_attrib::BinningX:
 				return true;		
 			case int_attrib::BinningY:
+				return true;
+            case int_attrib::TargetGrayValue:
 				return true;
 			default: 
 				return false;			
