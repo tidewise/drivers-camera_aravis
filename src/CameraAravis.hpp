@@ -23,7 +23,8 @@ namespace camera
 			CameraAravis();
 			~CameraAravis();
 			bool grab(const GrabMode mode = SingleFrame, const int buffer_len=1);
-			void openCamera(std::string camera_name);
+			void openCamera(std::string camera_name, unsigned packet_size = 1500);
+			static void resetCamera(const std::string& camera_name);
 			ArvPixelFormat getBayerFormat ();
 			bool retrieveFrame(base::samples::frame::Frame &frame,const int timeout=1000);
 			bool isFrameAvailable();

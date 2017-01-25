@@ -43,19 +43,43 @@ namespace camera
             g_object_unref(camera);
     }
 
-    void CameraAravis::openCamera(std::string camera_name)
+    void CameraAravis::openCamera(std::string camera_name, unsigned packet_size)
     {
         if(camera)
             throw runtime_error("openCamera failed - camera is already openend");
         camera = arv_camera_new(camera_name.c_str());
         if(camera == 0)
             throw runtime_error("openCamera failed - No Camera with name '" + camera_name + "' found!");
+
+        if(arv_camera_is_gv_device(camera))
+        {
+            gint current_packet_size = arv_camera_gv_get_packet_size(camera);
+            if(current_packet_size != (int)packet_size)
+                arv_camera_gv_set_packet_size(camera, packet_size);
+        }
+
         stream = arv_camera_create_stream (camera, NULL, NULL);
         if(stream == 0)
             throw runtime_error("openCamera failed - Cannot create stream");
 
         arv_stream_set_emit_signals (stream, TRUE);
+    }
 
+    void CameraAravis::resetCamera(const std::string& camera_name)
+    {
+        unsigned attempts = 0;
+        ArvCamera *tmp_camera = NULL;
+        while(tmp_camera == 0 && attempts < 10)
+        {
+            tmp_camera = arv_camera_new(camera_name.c_str());
+            attempts++;
+        }
+        if(tmp_camera == 0)
+            throw runtime_error("resetCamera failed - No Camera with name '" + camera_name + "' found!");
+
+        arv_device_execute_command(arv_camera_get_device(tmp_camera), "DeviceReset");
+
+        g_object_unref(tmp_camera);
     }
 
     void CameraAravis::startCapture()
