@@ -25,6 +25,7 @@ namespace camera
 			bool grab(const GrabMode mode = SingleFrame, const int buffer_len=1);
 			void openCamera(std::string camera_name, unsigned packet_size = 1500);
 			static void resetCamera(const std::string& camera_name);
+			void resetTimestamp();
 			ArvPixelFormat getBayerFormat ();
 			bool retrieveFrame(base::samples::frame::Frame &frame,const int timeout=1000);
 			bool isFrameAvailable();
@@ -68,6 +69,7 @@ namespace camera
 			void *callbackData;
 			void *errorCallbackData;
 			pthread_mutex_t buffer_counter_lock;
+            base::Time start_time;
 
 			std::vector<base::samples::frame::Frame> camera_buffer;
 
