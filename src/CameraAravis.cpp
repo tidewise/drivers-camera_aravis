@@ -165,7 +165,7 @@ namespace camera
             new_frame.swap(frame);
             new_frame.init(frame.size.width,frame.size.height,8,frame.frame_mode,-1); // ensure right size
             frame.setStatus(base::samples::frame::STATUS_VALID);
-            frame.time = start_time + base::Time::fromMicroseconds(arv_buffer_get_timestamp(arv_buffer)*0.001);
+            frame.time = start_time + base::Time::fromMicroseconds(arv_buffer_get_timestamp(arv_buffer)/1000);
             frame.received_time = base::Time::now();
             //we have to create a new buffer because pointer has changed 
             g_object_unref(arv_buffer);
