@@ -3,10 +3,9 @@
 	  This package contains a driver and a testprogramm for Cameras based on the genicam standard. The connection
 	  will be created through the aravis library of the gnome project.
   </description>
+  <maintainer>Diego Cesar/diego.b.cesar@gmail.com</maintainer>
   <author>Fabian Franzen</author>
   <license>LGPL</license>
-  <url>http://</url>
-  <logo>http://</logo>
   <depend package="drivers/aravis" />
   <depend package="drivers/camera_interface" />
   <depend package="image_processing/frame_helper" />
