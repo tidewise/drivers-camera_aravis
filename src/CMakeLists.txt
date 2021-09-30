@@ -7,5 +7,6 @@ rock_library(camera_aravis
 target_link_libraries(camera_aravis pthread)
 rock_executable(camera_aravis_test CameraAravisTest.cpp
 	DEPS camera_aravis
-	DEPS_PKGCONFIG opencv camera_interface)
+	DEPS_CMAKE OpenCV
+	DEPS_PKGCONFIG camera_interface)
 TARGET_LINK_LIBRARIES(camera_aravis_test pthread)
