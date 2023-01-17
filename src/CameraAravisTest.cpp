@@ -38,11 +38,20 @@ int main(int argc, const char *argv[])
 	sem_init(&buffer_sync, 0, 0);
 
 	cam = new CameraAravis();
-	cam->openCamera("The Imaging Source Europe GmbH-42210449");
+	cam->openCamera(argv[1]);
+	cam->grab(camera::Stop);
+	cam->setAttrib(camera::int_attrib::BinningX, 2);
+	cam->setAttrib(camera::int_attrib::BinningY, 2);
 	//cam->openCamera("Aravis-GV01");
-	cam->grab(camera::Continuously, 50);
 	cam->setAttrib(camera::enum_attrib::WhitebalModeToAuto);
-	cam->setFrameSettings(base::samples::frame::frame_size_t(), base::samples::frame::MODE_BAYER, 8, false);
+	cam->setAttrib(camera::double_attrib::FrameRate, 24);
+	cam->setAttrib(camera::int_attrib::ExposureValue, 1000);
+	cam->setAttrib(camera::int_attrib::GainValue, 40);
+	// cam->setAttrib(camera::int_attrib::RegionX, 1000);
+	// cam->setAttrib(camera::int_attrib::RegionY, 1000);
+	cam->grab(camera::Continuously, 50);
+	cam->setFrameSettings(base::samples::frame::frame_size_t(1248, 720) ,base::samples::frame::MODE_BAYER, 0, false);
+
 	//cam->setCallbackFcn(newFrameCallback, 0);
 	cv::namedWindow("Test");
 	while(!finished) {
