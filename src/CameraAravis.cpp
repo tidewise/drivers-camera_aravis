@@ -276,13 +276,13 @@ namespace camera
 				arv_camera_set_exposure_time_auto(camera, ARV_AUTO_OFF);				
 				arv_camera_set_exposure_time(camera, value);
 				double exposure = arv_camera_get_exposure_time(camera);
-				if (exposure != value) throw runtime_error("The attribute 'exposure' could not be set");		
+				if (abs(exposure - value) > 50) throw runtime_error("The attribute 'exposure' could not be set "  + std::to_string(value) + " but the camera reports " + std::to_string(exposure));		
 				break;
 			}
 			case int_attrib::GainValue:{
 				arv_camera_set_gain(camera, value);
-				int gain = arv_camera_get_gain(camera);	
-				if (gain != value) throw runtime_error("The attribute 'gain' could not be set");
+				double gain = arv_camera_get_gain(camera);	
+				if (gain != value) throw runtime_error("The attribute 'gain' could not be set " + std::to_string(value) + " but the camera reports " + std::to_string(gain));		
 				break;
 			}
 			case int_attrib::RegionX:{
@@ -290,7 +290,7 @@ namespace camera
 				arv_camera_get_region (camera, &region_x, &region_y, &width, &height);
 				arv_camera_set_region (camera, value, region_y, width, height);
 				arv_camera_get_region (camera, &region_x, &region_y, &width, &height);
-				if (region_x != value) throw runtime_error("The attribute region_x could not be set.");
+				if (region_x != value) throw runtime_error("The attribute region_x could not be set. " + std::to_string(value) + " but the camera reports " + std::to_string(region_x));
 				
 				int sensor_width, sensor_height;
 				arv_camera_get_sensor_size(camera, &sensor_width, &sensor_height); 
@@ -307,7 +307,7 @@ namespace camera
 				arv_camera_set_region (camera, region_x, value, width, height);
 				arv_camera_get_region (camera, &region_x, &region_y, &width, &height);
 				
-				if (region_y != value) throw runtime_error("The attribute region_y could not be set.");
+				if (region_y != value) throw runtime_error("The attribute region_y could not be set. " + std::to_string(value) + " but the camera reports " + std::to_string(region_y));
 
 				int sensor_width, sensor_height;
 				arv_camera_get_sensor_size(camera, &sensor_width, &sensor_height); 
@@ -317,11 +317,10 @@ namespace camera
 				break;
 
 			}
-			case int_attrib::BinningX:{
-				int binning_x, binning_y;		
-				arv_camera_get_binning (camera, &binning_x, &binning_y);
-				arv_camera_set_binning (camera, value, binning_y);
-				arv_camera_get_binning (camera, &binning_x, &binning_y);
+			case int_attrib::BinningX: {
+				arv_camera_set_binning (camera, value, 0);
+				int binning_x;
+				arv_camera_get_binning (camera, &binning_x, nullptr);
 
 				// check the return value of the binning.
 				// Everything is ok when it matches however,
@@ -330,20 +329,19 @@ namespace camera
 				// is an assumption based on what the previous
 				// version of what this code seemed to want to
 				// do.
-                                if (binning_x != 0 && value != 1 && binning_x != value)
-                                        throw runtime_error("Camera does not support binning.");
+				if (binning_x != 0 && value != 1 && binning_x != value)
+					throw runtime_error("Camera does not support binning. X. " + std::to_string(value) + " but the camera reports " + std::to_string(binning_x));
 				break;
 			}
 
 			case int_attrib::BinningY:{
-				int binning_x, binning_y;		
-				arv_camera_get_binning (camera, &binning_x, &binning_y);
-				arv_camera_set_binning (camera, binning_x, value);
-				arv_camera_get_binning (camera, &binning_x, &binning_y);
+				arv_camera_set_binning (camera, 0, value);
+				int binning_y;
+				arv_camera_get_binning (camera, nullptr, &binning_y);
 
-                                // see check of binning_x for explanations
-                                if (binning_y != 0 && value != 1 && binning_y != value)
-                                    throw runtime_error("Camera does not support binning.");
+				// see check of binning_x for explanations
+				if (binning_y != 0 && value != 1 && binning_y != value)
+					throw runtime_error("Camera does not support binning. Y. " + std::to_string(value) + " but the camera reports " + std::to_string(binning_y));
 			}
             case int_attrib::TargetGrayValue:{
                 arv_device_set_integer_feature_value(arv_camera_get_device(camera), "AutoTargetValue", value);
@@ -354,26 +352,28 @@ namespace camera
 		return true;
 	}
 
-       	bool CameraAravis::setAttrib(const double_attrib::CamAttrib attrib,const double value) {
+	bool CameraAravis::setAttrib(const double_attrib::CamAttrib attrib,const double value) {
 		switch(attrib) {
-                    case double_attrib::FrameRate:{
-		            arv_camera_stop_acquisition(camera); 
-                            arv_camera_set_frame_rate(camera, value);
-                            double fps = arv_camera_get_frame_rate(camera);
-			    if (fabs(fps - value) > 0.01) throw runtime_error("The attribute 'FrameRate' could not be set");
-			    arv_camera_start_acquisition(camera);
-                            return true;
-		    }
-                    default:
-                            return false;
+			case double_attrib::FrameRate:{
+				arv_camera_stop_acquisition(camera);
+				arv_camera_set_frame_rate(camera, value);
+				double fps = arv_camera_get_frame_rate(camera);
+				if (fabs(fps - value) > 0.01) {
+					throw runtime_error("The attribute 'FrameRate' could not be set, tried to set to " + std::to_string(value) + " but the camera reports " + std::to_string(fps));
+				}
+				arv_camera_start_acquisition(camera);
+				return true;
+			}
+			default:
+					return false;
 		}
 	}
 
         int CameraAravis::getAttrib(const int_attrib::CamAttrib attrib) {
 		switch(attrib) {
-			case int_attrib::ExposureValue:
+            case int_attrib::ExposureValue:
 				return arv_camera_get_exposure_time(camera);
-			case int_attrib::GainValue:
+            case int_attrib::GainValue:
 				return arv_camera_get_gain(camera);
 			default:
 				throw runtime_error("The attribute is not supported by the camera!");
@@ -571,10 +571,10 @@ namespace camera
 		return "Here could be your super camera diagnose string...";
 	}
 
-        bool CameraAravis::isFrameAvailable() 
-        {
-            //HACK: Eigentlich sollte der Task mit Callback benutzt werden, dann ist diese Methode eigentlich gar nicht notwendig, aber der camera_base Task erwartet
-            //trotzdem das hier sinnvolle Werte zurückgegeben werden
-            return buffer_counter > 0;
-        }
+	bool CameraAravis::isFrameAvailable() 
+	{
+		//HACK: Eigentlich sollte der Task mit Callback benutzt werden, dann ist diese Methode eigentlich gar nicht notwendig, aber der camera_base Task erwartet
+		//trotzdem das hier sinnvolle Werte zurückgegeben werden
+		return buffer_counter > 0;
+	}
 }
